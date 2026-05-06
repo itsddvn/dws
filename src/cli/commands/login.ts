@@ -1,4 +1,5 @@
 import { readAuthStatus, runDevinLogin } from '../../core/auth';
+import { readProfileOrgId } from '../../core/profile-config';
 import { ensureProfileDirs } from '../../core/profile-paths';
 import { AccountStore } from '../../core/store';
 
@@ -29,7 +30,8 @@ export async function runLogin(name: string): Promise<void> {
   store.setAuthMetadata(account.id, {
     email: status.email ?? null,
     tier: status.tier ?? null,
-    plan: status.plan ?? null
+    plan: status.plan ?? null,
+    orgId: readProfileOrgId(account.id)
   });
   console.log(`${account.name} is logged in${status.email ? ` (${status.email})` : ''}.`);
 }

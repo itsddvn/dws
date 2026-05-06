@@ -20,16 +20,6 @@ function formatCell(value: string | number | null | undefined): string {
   return String(value);
 }
 
-export function formatPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return 'unknown';
-  return `${Math.round(value)}%`;
-}
-
-export function formatCredits(used: number | null | undefined, available: number | null | undefined): string {
-  if (used === null || used === undefined || available === null || available === undefined) return 'unknown';
-  return `${used}/${used + available}`;
-}
-
 export function formatTimestamp(epochSeconds: number | null | undefined): string {
   if (!epochSeconds) return 'never';
   const seconds = Math.floor(Date.now() / 1000) - epochSeconds;

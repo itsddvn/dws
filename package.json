@@ -1,8 +1,8 @@
 {
   "name": "devin-switcher",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Minimal Devin CLI account switcher: pick the account with the most quota and run devin under its credentials.",
+  "description": "Minimal Devin CLI account switcher: rotate between accounts (least-recently-used) and run devin under each.",
   "bin": {
     "dsw": "./bin/dsw"
   },

@@ -1,5 +1,5 @@
 import { AccountStore } from '../../core/store';
-import { formatPercent, formatTimestamp, renderTable } from '../../util/format';
+import { formatTimestamp, renderTable } from '../../util/format';
 
 export function runList(): void {
   const store = new AccountStore();
@@ -15,10 +15,9 @@ export function runList(): void {
     account.email ?? '',
     account.tier ?? '',
     account.plan ?? '',
-    formatPercent(account.quota?.dailyRemainingPct ?? null),
-    formatPercent(account.quota?.weeklyRemainingPct ?? null),
+    account.orgId ?? '',
     formatTimestamp(account.lastUsedAt)
   ]);
 
-  console.log(renderTable(['name', 'status', 'email', 'tier', 'plan', 'daily', 'weekly', 'last used'], rows));
+  console.log(renderTable(['name', 'status', 'email', 'tier', 'plan', 'org id', 'last used'], rows));
 }

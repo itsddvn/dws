@@ -23,30 +23,21 @@ export async function runDevinForAccount(store: AccountStore, account: Account, 
   });
 }
 
-export function pickAccountByQuota(accounts: Account[]): Account | null {
+/**
+ * Pick the next account to run. Picks the least-recently-used eligible
+ * account so accounts rotate fairly. Accounts that need login are skipped.
+ */
+export function pickNextAccount(accounts: Account[]): Account | null {
   const eligible = accounts.filter((account) => !account.needsLogin);
   if (eligible.length === 0) return null;
-  return [...eligible].sort(compareForSelection)[0]!;
+  return [...eligible].sort(compareLeastRecentlyUsed)[0]!;
 }
 
-function compareForSelection(left: Account, right: Account): number {
-  const leftScore = scoreFor(left);
-  const rightScore = scoreFor(right);
-  if (leftScore !== rightScore) return rightScore - leftScore;
-  // Prefer the least recently used (rotate fairly).
+function compareLeastRecentlyUsed(left: Account, right: Account): number {
   const leftLast = left.lastUsedAt ?? 0;
   const rightLast = right.lastUsedAt ?? 0;
   if (leftLast !== rightLast) return leftLast - rightLast;
-  return left.createdAt - right.createdAt;
-}
-
-function scoreFor(account: Account): number {
-  const quota = account.quota;
-  if (!quota) return -1;
-  const daily = quota.dailyRemainingPct;
-  const weekly = quota.weeklyRemainingPct;
-  if (daily === null && weekly === null) return -1;
-  if (daily === null) return weekly ?? -1;
-  if (weekly === null) return daily;
-  return Math.min(daily, weekly);
+  // Tie break: created earlier first (deterministic).
+  if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
+  return left.name.localeCompare(right.name);
 }

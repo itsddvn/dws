@@ -1,11 +1,9 @@
-import { refreshAllQuotas } from '../../core/quota';
-import { pickAccountByQuota, runDevinForAccount } from '../../core/runner';
+import { pickNextAccount, runDevinForAccount } from '../../core/runner';
 import { AccountStore } from '../../core/store';
-import { formatPercent } from '../../util/format';
+import { formatTimestamp } from '../../util/format';
 
 export interface DefaultCommandOptions {
   args: string[];
-  skipRefresh?: boolean;
 }
 
 export async function runDefault(options: DefaultCommandOptions): Promise<void> {
@@ -17,33 +15,14 @@ export async function runDefault(options: DefaultCommandOptions): Promise<void> 
     return;
   }
 
-  if (!options.skipRefresh) {
-    process.stderr.write('Refreshing quota for all accounts...\n');
-    const results = await refreshAllQuotas(store);
-    for (const result of results) {
-      if (result.error) {
-        process.stderr.write(`  ${result.account.name}: ${result.needsLogin ? 'needs login' : result.error}\n`);
-      } else {
-        const daily = formatPercent(result.quota?.dailyRemainingPct ?? null);
-        const weekly = formatPercent(result.quota?.weeklyRemainingPct ?? null);
-        process.stderr.write(`  ${result.account.name}: daily=${daily} weekly=${weekly}\n`);
-      }
-    }
-  }
-
-  const refreshed = store.list();
-  const picked = pickAccountByQuota(refreshed);
+  const picked = pickNextAccount(accounts);
   if (!picked) {
-    console.error('No eligible accounts. All accounts need login or have no quota data.');
+    console.error('No eligible accounts. All accounts need login. Run `dsw login <name>` to fix.');
     process.exitCode = 1;
     return;
   }
 
-  const quota = picked.quota;
-  const daily = formatPercent(quota?.dailyRemainingPct ?? null);
-  const weekly = formatPercent(quota?.weeklyRemainingPct ?? null);
-  process.stderr.write(`Selected ${picked.name} (daily=${daily} weekly=${weekly})\n`);
-
+  process.stderr.write(`Selected ${picked.name} (last used: ${formatTimestamp(picked.lastUsedAt)})\n`);
   const exitCode = await runDevinForAccount(store, picked, { args: options.args });
   process.exitCode = exitCode ?? 0;
 }

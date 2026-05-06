@@ -3,29 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 
-export interface QuotaSnapshot {
-  fetchedAt: number;
-  dailyRemainingPct: number | null;
-  weeklyRemainingPct: number | null;
-  usedPromptCredits: number | null;
-  availablePromptCredits: number | null;
-  usedFlowCredits: number | null;
-  availableFlowCredits: number | null;
-  usedFlexCredits: number | null;
-  availableFlexCredits: number | null;
-  rawOutput: string;
-}
-
 export interface Account {
   id: string;
   name: string;
   email: string | null;
   tier: string | null;
   plan: string | null;
+  orgId: string | null;
   createdAt: number;
   lastUsedAt: number | null;
   needsLogin: boolean;
-  quota: QuotaSnapshot | null;
 }
 
 interface StoreFile {
@@ -74,10 +61,10 @@ export class AccountStore {
       email: null,
       tier: null,
       plan: null,
+      orgId: null,
       createdAt: nowSeconds(),
       lastUsedAt: null,
-      needsLogin: true,
-      quota: null
+      needsLogin: true
     };
     file.accounts.push(account);
     this.save(file);
@@ -103,22 +90,22 @@ export class AccountStore {
     return next;
   }
 
-  setAuthMetadata(id: string, metadata: { email?: string | null; tier?: string | null; plan?: string | null }): Account {
+  setAuthMetadata(
+    id: string,
+    metadata: { email?: string | null; tier?: string | null; plan?: string | null; orgId?: string | null }
+  ): Account {
     return this.update(id, (account) => ({
       ...account,
       email: metadata.email ?? account.email,
       tier: metadata.tier ?? account.tier,
       plan: metadata.plan ?? account.plan,
+      orgId: metadata.orgId ?? account.orgId,
       needsLogin: false
     }));
   }
 
   markNeedsLogin(id: string): Account {
     return this.update(id, (account) => ({ ...account, needsLogin: true }));
-  }
-
-  setQuota(id: string, snapshot: QuotaSnapshot): Account {
-    return this.update(id, (account) => ({ ...account, quota: snapshot }));
   }
 
   touchLastUsed(id: string): Account {
@@ -170,9 +157,9 @@ function normalizeAccount(raw: unknown): Account {
     email: account.email ?? null,
     tier: account.tier ?? null,
     plan: account.plan ?? null,
+    orgId: account.orgId ?? null,
     createdAt: typeof account.createdAt === 'number' ? account.createdAt : nowSeconds(),
     lastUsedAt: typeof account.lastUsedAt === 'number' ? account.lastUsedAt : null,
-    needsLogin: account.needsLogin === true,
-    quota: account.quota ?? null
+    needsLogin: account.needsLogin === true
   };
 }

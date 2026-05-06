@@ -28,25 +28,19 @@ export async function main(argv = process.argv): Promise<void> {
   const first = args[0];
 
   if (!first || !SUBCOMMANDS.has(first)) {
-    let forwarded = args;
-    let skipRefresh = false;
-    while (forwarded.length && (forwarded[0] === '--no-refresh' || forwarded[0] === '--refresh')) {
-      if (forwarded[0] === '--no-refresh') skipRefresh = true;
-      forwarded = forwarded.slice(1);
-    }
-    await runDefault({ args: forwarded, skipRefresh });
+    await runDefault({ args });
     return;
   }
 
   const program = new Command();
   program
     .name('dsw')
-    .description('Devin CLI account switcher: pick the account with the most quota and run devin under it.')
-    .version('0.2.0');
+    .description('Devin CLI account switcher: rotate between accounts and run devin under each.')
+    .version('0.3.0');
 
   program.addHelpText(
     'after',
-    `\nExamples:\n  $ dsw                 Refresh quota and run devin with the best account\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Refresh quota for all accounts\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n`
+    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Print Devin usage URLs (run with --open to launch in browser)\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n`
   );
 
   program
@@ -59,11 +53,11 @@ export async function main(argv = process.argv): Promise<void> {
 
   program
     .command('quota')
-    .description('Refresh quota for all accounts (or a single account)')
+    .description('Print each account\u2019s Devin usage URL (open Devin\u2019s webapp to view actual numbers)')
     .argument('[name]', 'Optional account name')
-    .option('--raw', 'Print the raw redacted /usage output')
-    .action(async (name: string | undefined, options: { raw?: boolean }) => {
-      await runQuota({ name, raw: options.raw });
+    .option('--open', 'Open the URL in your default browser')
+    .action(async (name: string | undefined, options: { open?: boolean }) => {
+      await runQuota({ name, open: options.open });
     });
 
   program

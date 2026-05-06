@@ -1,12 +1,19 @@
-import { refreshAccountQuota, refreshAllQuotas } from '../../core/quota';
+import { spawn } from 'node:child_process';
+import { readProfileOrgId, usageUrlForOrg } from '../../core/profile-config';
 import { AccountStore } from '../../core/store';
-import { formatCredits, formatPercent, renderTable } from '../../util/format';
+import { renderTable } from '../../util/format';
 
 export interface QuotaCommandOptions {
   name?: string;
-  raw?: boolean;
+  open?: boolean;
 }
 
+/**
+ * The Devin CLI does not expose quota numbers, and the Devin webapp loads
+ * them via authenticated browser-session-only API calls. So `dsw quota`
+ * just shows the per-account usage URL the user can click to view in their
+ * browser. With `--open`, it launches the URL via the system opener.
+ */
 export async function runQuota(options: QuotaCommandOptions = {}): Promise<void> {
   const store = new AccountStore();
   const allAccounts = store.list();
@@ -15,33 +22,41 @@ export async function runQuota(options: QuotaCommandOptions = {}): Promise<void>
     return;
   }
 
-  const results = options.name
-    ? [await refreshAccountQuota(store, store.getByName(options.name))]
-    : await refreshAllQuotas(store);
+  const accounts = options.name ? [store.getByName(options.name)] : allAccounts;
 
-  const rows = results.map((result) => {
-    const quota = result.quota;
-    return [
-      result.account.name,
-      result.error ? (result.needsLogin ? 'needs login' : 'error') : 'ok',
-      formatPercent(quota?.dailyRemainingPct ?? null),
-      formatPercent(quota?.weeklyRemainingPct ?? null),
-      formatCredits(quota?.usedPromptCredits ?? null, quota?.availablePromptCredits ?? null),
-      formatCredits(quota?.usedFlowCredits ?? null, quota?.availableFlowCredits ?? null),
-      formatCredits(quota?.usedFlexCredits ?? null, quota?.availableFlexCredits ?? null)
-    ];
-  });
-
-  console.log(renderTable(['name', 'status', 'daily', 'weekly', 'prompt', 'flow', 'flex'], rows));
-
-  for (const result of results) {
-    if (result.error && !result.needsLogin) {
-      console.error(`# ${result.account.name}: ${result.error}`);
-    }
-    if (options.raw && result.quota?.rawOutput) {
-      console.log('');
-      console.log(`${result.account.name} /usage output:`);
-      console.log(result.quota.rawOutput);
+  // Refresh org id from each profile's devin config.json in case `devin auth login`
+  // / `devin setup` saved/updated it after the account was created.
+  for (const account of accounts) {
+    const orgId = readProfileOrgId(account.id);
+    if (orgId && orgId !== account.orgId) {
+      store.update(account.id, (a) => ({ ...a, orgId }));
     }
   }
+
+  const refreshed = options.name ? [store.getByName(options.name)] : store.list();
+  const rows = refreshed.map((account) => [
+    account.name,
+    account.email ?? '',
+    account.orgId ?? '(unknown)',
+    usageUrlForOrg(account.orgId)
+  ]);
+  console.log(renderTable(['name', 'email', 'org id', 'usage url'], rows));
+
+  if (options.open) {
+    for (const account of refreshed) {
+      const url = usageUrlForOrg(account.orgId);
+      openUrl(url);
+      console.error(`Opened ${url}`);
+    }
+  } else {
+    console.log('');
+    console.log('Note: Devin does not expose quota via the CLI. Open the URL above to view it.');
+    console.log('      Use `dsw quota --open` to launch it in your browser.');
+  }
+}
+
+function openUrl(url: string): void {
+  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['', url] : [url];
+  spawn(command, args, { detached: true, stdio: 'ignore' }).unref();
 }

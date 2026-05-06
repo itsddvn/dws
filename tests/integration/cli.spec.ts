@@ -19,8 +19,6 @@ interface RunResult {
 let shimDir: string;
 
 beforeAll(() => {
-  // Build a tiny shell shim named "devin" so child processes that spawn
-  // "devin" reach our fake-devin script via PATH.
   shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsw-shim-'));
   const shimPath = path.join(shimDir, 'devin');
   fs.writeFileSync(
@@ -33,21 +31,6 @@ beforeAll(() => {
 afterAll(() => {
   if (shimDir) fs.rmSync(shimDir, { recursive: true, force: true });
 });
-
-function baseQuota({ daily, weekly }: { daily: number; weekly: number }) {
-  return {
-    fetchedAt: Math.floor(Date.now() / 1000),
-    dailyRemainingPct: daily,
-    weeklyRemainingPct: weekly,
-    usedPromptCredits: null,
-    availablePromptCredits: null,
-    usedFlowCredits: null,
-    availableFlowCredits: null,
-    usedFlexCredits: null,
-    availableFlexCredits: null,
-    rawOutput: ''
-  };
-}
 
 async function runCli(sandbox: Sandbox, args: string[], extraEnv: NodeJS.ProcessEnv = {}): Promise<RunResult> {
   const result = await runCapture(TSX_BIN, [CLI_ENTRY, ...args], {
@@ -80,7 +63,7 @@ describe('dsw CLI', () => {
     }
   });
 
-  it('add -> list -> quota -> remove flow', async () => {
+  it('add -> list -> remove flow', async () => {
     const add = await runCli(sandbox, ['add', 'primary']);
     expect(add.exitCode, `add stdout=${add.stdout} stderr=${add.stderr}`).toBe(0);
     expect(add.stdout).toMatch(/Added primary/);
@@ -89,12 +72,6 @@ describe('dsw CLI', () => {
     expect(list.exitCode).toBe(0);
     expect(list.stdout).toContain('primary');
     expect(list.stdout).toContain('ready');
-
-    const quota = await runCli(sandbox, ['quota']);
-    expect(quota.exitCode).toBe(0);
-    expect(quota.stdout).toContain('primary');
-    expect(quota.stdout).toMatch(/60%/);
-    expect(quota.stdout).toMatch(/80%/);
 
     const remove = await runCli(sandbox, ['remove', 'primary', '--yes']);
     expect(remove.exitCode).toBe(0);
@@ -109,22 +86,46 @@ describe('dsw CLI', () => {
     expect(result.stderr).toMatch(/--yes/);
   });
 
-  it('default command picks the account with the most quota and forwards args to devin', async () => {
-    await runCli(sandbox, ['add', 'low']);
-    await runCli(sandbox, ['add', 'high']);
+  it('default command rotates between accounts (least-recently-used wins)', async () => {
+    await runCli(sandbox, ['add', 'one']);
+    await runCli(sandbox, ['add', 'two']);
 
     const store = new AccountStore(sandbox.paths);
     store.reload();
     const accounts = store.list();
-    const low = accounts.find((account) => account.name === 'low')!;
-    const high = accounts.find((account) => account.name === 'high')!;
-    store.setQuota(low.id, baseQuota({ daily: 10, weekly: 10 }));
-    store.setQuota(high.id, baseQuota({ daily: 90, weekly: 90 }));
+    const one = accounts.find((account) => account.name === 'one')!;
+    const two = accounts.find((account) => account.name === 'two')!;
+    store.update(one.id, (a) => ({ ...a, lastUsedAt: 100 }));
+    store.update(two.id, (a) => ({ ...a, lastUsedAt: 50 }));
 
-    const result = await runCli(sandbox, ['--no-refresh', 'some', 'forwarded', 'args']);
+    const first = await runCli(sandbox, ['some', 'forwarded', 'args']);
+    expect(first.exitCode).toBe(0);
+    expect(first.stderr).toMatch(/Selected two/);
+    expect(first.stdout).toMatch(/some.*forwarded.*args/);
+
+    const second = await runCli(sandbox, ['next']);
+    expect(second.exitCode).toBe(0);
+    expect(second.stderr).toMatch(/Selected one/);
+  });
+
+  it('quota prints the per-account usage URL using the org id stored after add', async () => {
+    await runCli(sandbox, ['add', 'p']);
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const account = store.list().find((entry) => entry.name === 'p')!;
+    // Simulate the org_id that `devin setup` would have written into the
+    // per-profile config.json.
+    const profileConfigDir = path.join(sandbox.paths.profilesDir, account.id, 'config', 'devin');
+    fs.mkdirSync(profileConfigDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(profileConfigDir, 'config.json'),
+      JSON.stringify({ devin: { org_id: 'org-test-1' } })
+    );
+
+    const result = await runCli(sandbox, ['quota']);
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).toMatch(/Selected high/);
-    expect(result.stdout).toMatch(/some.*forwarded.*args/);
+    expect(result.stdout).toContain('org-test-1');
+    expect(result.stdout).toContain('https://app.devin.ai/org/org-test-1/settings/usage');
   });
 
   it('doctor reports paths and the devin binary version', async () => {
@@ -140,13 +141,5 @@ describe('dsw CLI', () => {
     expect(result.exitCode).toBe(1);
     const list = await runCli(sandbox, ['list']);
     expect(list.stdout).toMatch(/x\s+needs login/);
-  });
-
-  it('quota --raw prints the redacted /usage output', async () => {
-    await runCli(sandbox, ['add', 'p']);
-    const result = await runCli(sandbox, ['quota', 'p', '--raw']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/p \/usage output:/);
-    expect(result.stdout).toMatch(/Daily quota: 60% remaining/);
   });
 });

@@ -1,4 +1,5 @@
 import { readAuthStatus, runDevinLogin } from '../../core/auth';
+import { readProfileOrgId } from '../../core/profile-config';
 import { ensureProfileDirs, removeProfileDir } from '../../core/profile-paths';
 import { AccountStore } from '../../core/store';
 
@@ -29,7 +30,8 @@ export async function runAdd(name: string): Promise<void> {
   store.setAuthMetadata(account.id, {
     email: status.email ?? null,
     tier: status.tier ?? null,
-    plan: status.plan ?? null
+    plan: status.plan ?? null,
+    orgId: readProfileOrgId(account.id)
   });
   console.log(`Added ${account.name}${status.email ? ` (${status.email})` : ''}.`);
 }

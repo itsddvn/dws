@@ -45,8 +45,14 @@ describe('AccountStore', () => {
   it('updates auth metadata and clears needsLogin', () => {
     const store = new AccountStore(sandbox.paths);
     const created = store.create('work');
-    const updated = store.setAuthMetadata(created.id, { email: 'foo@example.com', tier: 'pro', plan: 'Pro' });
+    const updated = store.setAuthMetadata(created.id, {
+      email: 'foo@example.com',
+      tier: 'pro',
+      plan: 'Pro',
+      orgId: 'org-abc'
+    });
     expect(updated.email).toBe('foo@example.com');
+    expect(updated.orgId).toBe('org-abc');
     expect(updated.needsLogin).toBe(false);
   });
 
@@ -58,22 +64,11 @@ describe('AccountStore', () => {
     expect(store.list().map((account) => account.name)).toEqual(['two']);
   });
 
-  it('records quota snapshots', () => {
+  it('touchLastUsed bumps lastUsedAt', () => {
     const store = new AccountStore(sandbox.paths);
-    const created = store.create('q');
-    store.setQuota(created.id, {
-      fetchedAt: 1700000000,
-      dailyRemainingPct: 50,
-      weeklyRemainingPct: 75,
-      usedPromptCredits: 10,
-      availablePromptCredits: 20,
-      usedFlowCredits: null,
-      availableFlowCredits: null,
-      usedFlexCredits: null,
-      availableFlexCredits: null,
-      rawOutput: 'snapshot'
-    });
-    const fresh = new AccountStore(sandbox.paths);
-    expect(fresh.getByName('q').quota?.dailyRemainingPct).toBe(50);
+    const created = store.create('lru');
+    expect(created.lastUsedAt).toBeNull();
+    const after = store.touchLastUsed(created.id);
+    expect(after.lastUsedAt).not.toBeNull();
   });
 });
