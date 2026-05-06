@@ -6,18 +6,13 @@ export interface AppPaths {
   configHome: string;
   appDataDir: string;
   appConfigDir: string;
-  dbPath: string;
-  uiTokenPath: string;
+  storePath: string;
   profilesDir: string;
 }
 
 function expandHome(input: string): string {
-  if (input === '~') {
-    return os.homedir();
-  }
-  if (input.startsWith('~/')) {
-    return path.join(os.homedir(), input.slice(2));
-  }
+  if (input === '~') return os.homedir();
+  if (input.startsWith('~/')) return path.join(os.homedir(), input.slice(2));
   return input;
 }
 
@@ -32,8 +27,7 @@ export function resolveAppPaths(env: NodeJS.ProcessEnv = process.env): AppPaths 
     configHome,
     appDataDir,
     appConfigDir,
-    dbPath: path.join(appDataDir, 'app.db'),
-    uiTokenPath: path.join(appDataDir, 'ui-token'),
+    storePath: path.join(appDataDir, 'accounts.json'),
     profilesDir: path.join(appDataDir, 'profiles')
   };
 }

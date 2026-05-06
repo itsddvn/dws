@@ -1,22 +1,35 @@
-import { AccountService } from '../../core/accounts/service';
-import { readAuthStatus } from '../../core/profiles/auth-status';
-import { runProfileLogin } from '../../core/profiles/login';
+import { readAuthStatus, runDevinLogin } from '../../core/auth';
+import { ensureProfileDirs } from '../../core/profile-paths';
+import { AccountStore } from '../../core/store';
 
 export async function runLogin(name: string): Promise<void> {
-  const service = new AccountService();
-  const account = service.getByName(name);
-  await runProfileLogin(account.id);
-  const status = await readAuthStatus(account.id);
-  if (status.loggedIn) {
-    service.updateAuthMetadata(account.id, {
-      email: status.email,
-      tier: status.tier,
-      plan: status.plan,
-      teamId: status.teamId
-    });
-    console.log(`Profile ${name} is logged in`);
+  const store = new AccountStore();
+  const account = store.getByName(name);
+  ensureProfileDirs(account.id);
+
+  console.log(`Re-running \`devin auth login\` for ${account.name}...`);
+  try {
+    await runDevinLogin(account.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Login failed: ${message}`);
+    store.markNeedsLogin(account.id);
+    process.exitCode = 1;
     return;
   }
-  service.markNeedsLogin(account.id, 'auth status still reports not logged in');
-  console.log(`Profile ${name} still needs login`);
+
+  const status = await readAuthStatus(account.id);
+  if (!status.loggedIn) {
+    store.markNeedsLogin(account.id);
+    console.error(`Login did not complete for ${account.name}.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  store.setAuthMetadata(account.id, {
+    email: status.email ?? null,
+    tier: status.tier ?? null,
+    plan: status.plan ?? null
+  });
+  console.log(`${account.name} is logged in${status.email ? ` (${status.email})` : ''}.`);
 }

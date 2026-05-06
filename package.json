@@ -1,8 +1,8 @@
 {
   "name": "devin-switcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Local Devin CLI profile switcher with quota-aware account selection.",
+  "description": "Minimal Devin CLI account switcher: pick the account with the most quota and run devin under its credentials.",
   "bin": {
     "dsw": "./bin/dsw"
   },
@@ -17,17 +17,12 @@
     "node": ">=20"
   },
   "dependencies": {
-    "better-sqlite3": "^12.4.6",
-    "commander": "^14.0.2",
-    "execa": "^9.6.0",
-    "fastify": "^5.6.2"
+    "commander": "^14.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "eslint": "^9.39.1",
-    "tempy": "^3.1.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",

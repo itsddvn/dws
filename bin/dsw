@@ -1,2 +1,7 @@
 #!/usr/bin/env node
-require('../dist/src/cli/index.js');
+const { main } = require('../dist/src/cli/index.js');
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`dsw: ${message}`);
+  process.exitCode = 1;
+});

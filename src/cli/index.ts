@@ -1,170 +1,111 @@
 import { Command } from 'commander';
 import { runAdd } from './commands/add';
+import { runDefault } from './commands/default';
 import { runDoctor } from './commands/doctor';
-import { runSetEnabled } from './commands/enable-disable';
-import { runImportGlobal } from './commands/import-global';
 import { runList } from './commands/list';
 import { runLogin } from './commands/login';
-import { runMarkLimited, runUnmark } from './commands/mark';
+import { runQuota } from './commands/quota';
 import { runRemove } from './commands/remove';
-import { runExplicitProfile, runNextProfile } from './commands/run';
-import { runUi } from './commands/ui';
-import { runWizard } from './commands/wizard';
+
+const SUBCOMMANDS = new Set([
+  'list',
+  'ls',
+  'quota',
+  'add',
+  'remove',
+  'rm',
+  'login',
+  'doctor',
+  'help',
+  '--help',
+  '-h',
+  '--version',
+  '-V'
+]);
 
 export async function main(argv = process.argv): Promise<void> {
-  const program = new Command();
+  const args = argv.slice(2);
+  const first = args[0];
 
+  if (!first || !SUBCOMMANDS.has(first)) {
+    let forwarded = args;
+    let skipRefresh = false;
+    while (forwarded.length && (forwarded[0] === '--no-refresh' || forwarded[0] === '--refresh')) {
+      if (forwarded[0] === '--no-refresh') skipRefresh = true;
+      forwarded = forwarded.slice(1);
+    }
+    await runDefault({ args: forwarded, skipRefresh });
+    return;
+  }
+
+  const program = new Command();
   program
     .name('dsw')
-    .description('Local Devin CLI profile switcher')
-    .version('0.1.0')
-    .action(async () => {
-      await runWizard();
-    });
+    .description('Devin CLI account switcher: pick the account with the most quota and run devin under it.')
+    .version('0.2.0');
 
-  program
-    .command('run')
-    .description('Run devin under an explicit profile')
-    .argument('<name>', 'Profile name')
-    .argument('[args...]', 'Arguments passed to devin')
-    .allowUnknownOption(true)
-    .action(async (name: string, args: string[]) => {
-      await runExplicitProfile(name, args);
-    });
-
-  program
-    .command('next')
-    .description('Select an eligible profile and run devin')
-    .option('--strategy <strategy>', 'quota-weighted, round-robin, or manual', 'quota-weighted')
-    .argument('[args...]', 'Arguments passed to devin')
-    .allowUnknownOption(true)
-    .action(async (args: string[], options: { strategy: string }) => {
-      const strategy = normalizeStrategy(options.strategy);
-      await runNextProfile(strategy, args);
-    });
-
-  program
-    .command('mark-limited')
-    .description('Manually mark a profile limited')
-    .argument('<name>', 'Profile name')
-    .option('--until <iso>', 'Limit until this ISO timestamp')
-    .option('--until-reset', 'Limit until server reset/manual unmark')
-    .action((name: string, options: { until?: string; untilReset?: boolean }) => {
-      runMarkLimited(name, options);
-    });
-
-  program
-    .command('unmark')
-    .description('Clear manual limited status for a profile')
-    .argument('<name>', 'Profile name')
-    .action((name: string) => {
-      runUnmark(name);
-    });
-
-  program
-    .command('add')
-    .description('Create a profile and launch devin auth login inside it')
-    .argument('<name>', 'Profile name')
-    .action(async (name: string) => {
-      await runAdd(name);
-    });
-
-  program
-    .command('login')
-    .description('Re-login an existing profile')
-    .argument('<name>', 'Profile name')
-    .action(async (name: string) => {
-      await runLogin(name);
-    });
-
-  program
-    .command('import-global')
-    .description('Copy the current global Devin credential into a new profile')
-    .argument('<name>', 'Profile name')
-    .option('--force', 'Overwrite existing profile credential if present')
-    .action(async (name: string, options: { force?: boolean }) => {
-      await runImportGlobal(name, options);
-    });
+  program.addHelpText(
+    'after',
+    `\nExamples:\n  $ dsw                 Refresh quota and run devin with the best account\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Refresh quota for all accounts\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n`
+  );
 
   program
     .command('list')
-    .description('List configured Devin profiles')
+    .alias('ls')
+    .description('List configured Devin accounts')
     .action(() => {
       runList();
     });
 
   program
+    .command('quota')
+    .description('Refresh quota for all accounts (or a single account)')
+    .argument('[name]', 'Optional account name')
+    .option('--raw', 'Print the raw redacted /usage output')
+    .action(async (name: string | undefined, options: { raw?: boolean }) => {
+      await runQuota({ name, raw: options.raw });
+    });
+
+  program
+    .command('add')
+    .description('Add a new Devin account and run `devin auth login` for it')
+    .argument('<name>', 'Account name (letters, numbers, _, -)')
+    .action(async (name: string) => {
+      await runAdd(name);
+    });
+
+  program
     .command('remove')
-    .description('Remove a profile and its local files')
-    .argument('<name>', 'Profile name')
-    .option('--yes', 'Confirm removal')
+    .alias('rm')
+    .description('Remove an account and delete its profile credentials')
+    .argument('<name>', 'Account name')
+    .option('--yes', 'Confirm removal (required)')
     .action((name: string, options: { yes?: boolean }) => {
       runRemove(name, options);
     });
 
   program
-    .command('enable')
-    .description('Enable a profile')
-    .argument('<name>', 'Profile name')
-    .action((name: string) => {
-      runSetEnabled(name, true);
-    });
-
-  program
-    .command('disable')
-    .description('Disable a profile')
-    .argument('<name>', 'Profile name')
-    .action((name: string) => {
-      runSetEnabled(name, false);
-    });
-
-  program
-    .command('wizard')
-    .description('Run the first-run setup wizard')
-    .action(async () => {
-      await runWizard();
+    .command('login')
+    .description('Re-run `devin auth login` for an existing account')
+    .argument('<name>', 'Account name')
+    .action(async (name: string) => {
+      await runLogin(name);
     });
 
   program
     .command('doctor')
-    .description('Verify local paths, permissions, and database setup')
-    .action(() => {
-      runDoctor();
-    });
-
-  program
-    .command('ui')
-    .description('Start the local web UI')
-    .option('--port <port>', 'Port to bind; 0 chooses a random port', '0')
-    .action(async (options: { port?: string }) => {
-      await runUi(options.port);
-    });
-
-  program
-    .command('status')
-    .description('Show account and selector status')
-    .action(() => {
-      console.log('status: not implemented yet');
+    .description('Print local paths and verify devin CLI is available')
+    .action(async () => {
+      await runDoctor();
     });
 
   await program.parseAsync(argv);
 }
 
-function normalizeStrategy(input: string): 'manual' | 'quota-weighted' | 'round-robin' {
-  if (input === 'quota' || input === 'quota-weighted') {
-    return 'quota-weighted';
-  }
-  if (input === 'rr' || input === 'round-robin') {
-    return 'round-robin';
-  }
-  if (input === 'manual') {
-    return 'manual';
-  }
-  throw new Error(`Unknown strategy: ${input}`);
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`dsw: ${message}`);
+    process.exitCode = 1;
+  });
 }
-
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`dsw: ${message}`);
-  process.exitCode = 1;
-});
