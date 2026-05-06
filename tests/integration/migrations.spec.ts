@@ -30,4 +30,26 @@ describe('database migrations', () => {
     expect(tables).toContain('latest_quota_snapshots');
     expect(fs.existsSync(paths.dbPath)).toBe(true);
   });
+
+  it('opens an existing empty database and applies all migrations', () => {
+    const root = temporaryDirectory();
+    const paths = resolveAppPaths({
+      ...process.env,
+      DSW_DATA_HOME: path.join(root, 'data'),
+      DSW_CONFIG_HOME: path.join(root, 'config')
+    });
+
+    openAppDatabase({ paths, migrate: false }).close();
+    const db = openAppDatabase({ paths });
+    const migration = db
+      .prepare("SELECT version FROM schema_migrations WHERE version = '001_init.sql'")
+      .get() as { version: string } | undefined;
+    const accountsTable = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'accounts'")
+      .get() as { name: string } | undefined;
+    db.close();
+
+    expect(migration).toEqual({ version: '001_init.sql' });
+    expect(accountsTable).toEqual({ name: 'accounts' });
+  });
 });

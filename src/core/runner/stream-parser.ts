@@ -4,6 +4,7 @@ const MAX_LINE_LENGTH = 16 * 1024;
 
 export class StreamSignalParser {
   private readonly decisions: SignalDecision[] = [];
+  private finishReason: string | null = null;
 
   ingestLine(line: string): void {
     const bounded = line.length > MAX_LINE_LENGTH ? line.slice(0, MAX_LINE_LENGTH) : line;
@@ -11,6 +12,7 @@ export class StreamSignalParser {
 
     const finishReason = extractFinishReason(bounded);
     if (finishReason) {
+      this.finishReason = finishReason;
       this.record({ type: 'finish_reason', value: finishReason });
     }
   }
@@ -29,6 +31,10 @@ export class StreamSignalParser {
       this.decisions.find((decision) => decision.kind === 'cooldown') ??
       { kind: 'none' }
     );
+  }
+
+  getFinishReason(): string | null {
+    return this.finishReason;
   }
 
   private record(signal: AccountSignal): void {

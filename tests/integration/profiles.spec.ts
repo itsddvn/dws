@@ -74,4 +74,12 @@ Account:
     expect(parsed.plan).toBe('Trial');
     expect(parsed.teamId).toBe('team-123');
   });
+
+  it('parses missing logins without throwing or inventing account metadata', () => {
+    const parsed = parseAuthStatus('Not logged in.\nRun devin auth login.');
+
+    expect(parsed.loggedIn).toBe(false);
+    expect(parsed.email).toBeUndefined();
+    expect(parsed.tier).toBeUndefined();
+  });
 });

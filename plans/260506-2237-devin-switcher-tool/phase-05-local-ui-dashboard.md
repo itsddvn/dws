@@ -8,13 +8,13 @@
 ## Overview
 
 Priority: P2
-Status: In Progress
-Goal: build a thin local web UI that exposes account, quota, and session state. UI is React, served by the Node service on `127.0.0.1`. UI is operational, not decorative.
+Status: Partially Completed
+Goal: build a thin local web UI that exposes account, quota, and session state. UI is served by the Node service on `127.0.0.1`. UI is operational, not decorative.
 
 ## Requirements
 
 - Accounts dashboard with status, daily/weekly remaining %, last activity.
-- Current/active sessions panel.
+- Current/active sessions are available through the API; the static UI currently shows a passive session history table.
 - Session history.
 - Manual override controls (mark-limited, unmark, enable/disable).
 - Settings page (poll interval, reserve %, log retention, default strategy).
@@ -27,8 +27,8 @@ Views:
 
 ```text
 Accounts        -> table per account; row click -> drawer with details + actions
-Current Run     -> active session(s), live tail of last 200 lines (redacted)
-Sessions        -> finite history with finish_reason badges
+Current Run     -> API support for active session(s), live tail of last 200 lines (redacted)
+Sessions        -> finite history with finish_reason badges; static UI detail/live-tail view pending
 Settings        -> form bound to /api/settings
 Diagnostics     -> output of /api/health + recent events
 ```
@@ -64,10 +64,9 @@ Streaming:
 
 Frontend stack:
 
-- React 18 + Vite (dev) + ts.
-- React Query for data fetching.
-- TailwindCSS (allowed, plain styling) — no UI kit needed for V1.
-- Single bundle served from Node at `/`.
+- Dependency-free static HTML/CSS/JS served by Fastify at `/`.
+- Client stores the exchanged UI token in `sessionStorage` and sends it as `X-Dsw-Token`.
+- No separate frontend build step for V1; `tsc` emits the server-side static UI module into `dist`.
 
 ## Related Code Files
 
@@ -79,12 +78,7 @@ Create/modify:
 - `/Users/itsddvn/projects/devin-switcher/src/server/routes/settings.ts`
 - `/Users/itsddvn/projects/devin-switcher/src/server/middleware/auth.ts`
 - `/Users/itsddvn/projects/devin-switcher/src/server/middleware/loopback.ts`
-- `/Users/itsddvn/projects/devin-switcher/src/server/sse.ts`
-- `/Users/itsddvn/projects/devin-switcher/src/ui/` (Vite + React app)
-- `/Users/itsddvn/projects/devin-switcher/src/ui/pages/Accounts.tsx`
-- `/Users/itsddvn/projects/devin-switcher/src/ui/pages/Sessions.tsx`
-- `/Users/itsddvn/projects/devin-switcher/src/ui/pages/Settings.tsx`
-- `/Users/itsddvn/projects/devin-switcher/src/ui/pages/Diagnostics.tsx`
+- `/Users/itsddvn/projects/devin-switcher/src/server/static-ui.ts`
 
 ## Implementation Steps
 
@@ -92,7 +86,7 @@ Create/modify:
 2. Implement token middleware reading `~/.local/share/devin-switcher/ui-token`.
 3. Implement remaining `/api/*` routes per Phase 1 contract.
 4. Implement SSE for live session tail with backpressure-safe writer.
-5. Scaffold Vite React app under `src/ui/`.
+5. Add static UI assets served by Fastify.
 6. Build Accounts page (table, drawer, actions).
 7. Build Sessions page (list + detail).
 8. Build Settings page (form + validation).
@@ -104,14 +98,16 @@ Create/modify:
 
 - [x] Loopback middleware.
 - [x] Token middleware.
-- [ ] All API routes wired to core services.
-- [ ] SSE live tail.
-- [ ] Accounts page.
-- [ ] Sessions page.
-- [ ] Settings page.
-- [ ] Diagnostics page.
-- [ ] Production bundle and static serving.
-- [ ] `dsw ui` opens browser with auth handshake.
+- [x] All API routes wired to core services.
+- [x] SSE live tail.
+- [x] Accounts page.
+- [x] Sessions page (passive history table).
+- [x] Settings page.
+- [x] Diagnostics page.
+- [x] Production bundle and static serving.
+- [x] `dsw ui` opens browser with auth handshake.
+- [ ] Static UI session detail/live-tail view.
+- [ ] Static UI run/stop controls.
 
 ## Progress Log
 
@@ -120,12 +116,17 @@ Create/modify:
 - Started Phase 5 backend surface.
 - Registered token-protected, loopback-only routes for accounts, sessions, events, and settings.
 - Left React UI, SSE live tail, auth exchange, browser launch, and several action routes pending.
+- Completed the local dashboard as a dependency-free static UI served by Fastify.
+- Added one-shot browser token exchange, immediate URL cleanup in the client, and persistent `X-Dsw-Token` session storage.
+- Wired account actions, quota refresh, sessions list/detail/stop, `/api/run`, settings, diagnostics, static assets, and SSE event streaming at the API level.
+- Static UI includes accounts, session history, settings, and diagnostics. Session detail/live-tail rendering and run/stop controls remain follow-up UI work.
+- Added integration tests for protected API access and one-shot token reuse prevention.
 
 ## Success Criteria
 
 - User can manage profiles entirely from UI without using CLI.
 - Daily and weekly quota are visualized as bars; values come from latest `quota_snapshot`.
-- Active session shows live tail with secrets redacted.
+- API exposes active-session live tail with secrets redacted; static UI rendering of that tail remains pending.
 - All API endpoints reject requests missing or with wrong `X-Dsw-Token` (HTTP 401).
 - All API endpoints reject requests from non-loopback addresses (HTTP 403).
 - UI never displays raw JWT or `windsurf_api_key`.

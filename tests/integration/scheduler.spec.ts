@@ -8,6 +8,7 @@ import { AccountService } from '../../src/core/accounts/service';
 import { classifySignal } from '../../src/core/quota/signals';
 import { pollQuotaForAccount } from '../../src/core/quota/poller';
 import { resolveProfilePaths } from '../../src/core/profiles/paths';
+import { acquireProfileLock } from '../../src/core/runner/locks';
 import { selectNextAccount, suggestManualAccount } from '../../src/core/scheduler/strategies';
 
 function setupDb() {
@@ -115,6 +116,54 @@ describe('scheduler and quota signals', () => {
     ).run(usable.id, 2, 30, 30);
 
     expect(selectNextAccount(db).name).toBe('usable');
+    db.close();
+  });
+
+  it('eligibility excludes disabled, locked, limited, needs-login, and reserve-exhausted accounts', () => {
+    const { db, paths } = setupDb();
+    const service = new AccountService(db, paths);
+    const disabled = service.create('disabled');
+    const locked = service.create('locked');
+    const limited = service.create('limited');
+    const needsLogin = service.create('needs-login');
+    const reserve = service.create('reserve');
+    const usable = service.create('usable');
+
+    for (const account of [disabled, locked, limited, needsLogin, reserve, usable]) {
+      service.markReady(account.id);
+    }
+    service.setEnabled('disabled', false);
+    db.prepare('INSERT INTO sessions (id, account_id, started_at, strategy) VALUES (?, ?, ?, ?)')
+      .run('active-session', locked.id, 1, 'manual');
+    acquireProfileLock(db, locked.id, 'active-session', process.pid);
+    service.markLimited('limited', 'manual');
+    service.markNeedsLogin(needsLogin.id, 'auth_required');
+    db.prepare(
+      `INSERT INTO quota_snapshots
+        (account_id, fetched_at, source, daily_remaining_pct, weekly_remaining_pct)
+       VALUES (?, ?, 'manual', ?, ?)`
+    ).run(reserve.id, 1, 5, 90);
+
+    expect(selectNextAccount(db).name).toBe('usable');
+    db.close();
+  });
+
+  it('round-robin cursor wraps and persists between selections', () => {
+    const { db, paths } = setupDb();
+    const service = new AccountService(db, paths);
+    const first = service.create('first');
+    const second = service.create('second');
+    service.markReady(first.id);
+    service.markReady(second.id);
+
+    expect(selectNextAccount(db, 'round-robin').name).toBe('first');
+    expect(selectNextAccount(db, 'round-robin').name).toBe('second');
+    expect(selectNextAccount(db, 'round-robin').name).toBe('first');
+
+    const cursor = db.prepare("SELECT account_id FROM selector_cursor WHERE key = 'default'").get() as {
+      account_id: string;
+    };
+    expect(cursor.account_id).toBe(first.id);
     db.close();
   });
 

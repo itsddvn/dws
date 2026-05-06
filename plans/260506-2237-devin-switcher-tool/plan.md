@@ -96,8 +96,8 @@ Everything after `--` is passed through to `devin` unchanged. The CLI sets XDG e
 | 2 | [Project Foundation](./phase-02-project-foundation.md) | Completed |
 | 3 | [Profile And Credential Management](./phase-03-profile-and-credential-management.md) | Completed |
 | 4 | [Selection And Quota Logic](./phase-04-round-robin-and-quota-logic.md) | Completed |
-| 5 | [Local UI Dashboard](./phase-05-local-ui-dashboard.md) | In Progress |
-| 6 | [Integration And Validation](./phase-06-integration-and-validation.md) | Pending |
+| 5 | [Local UI Dashboard](./phase-05-local-ui-dashboard.md) | Partially Completed |
+| 6 | [Integration And Validation](./phase-06-integration-and-validation.md) | Automated Complete; Live Pending |
 
 ## Scope
 

@@ -7,7 +7,10 @@ import { recordEvent } from '../events/log';
 import { buildProfileEnv } from '../profiles/env';
 import { pollQuotaForAccount } from '../quota/poller';
 import { acquireProfileLock, heartbeatProfileLock, releaseProfileLock } from './locks';
+import { appendSessionTail } from './live-tail';
 import { StreamSignalParser } from './stream-parser';
+
+const MAX_BUFFERED_LINE_LENGTH = 16 * 1024;
 
 export interface RunDevinOptions {
   account: Account;
@@ -51,22 +54,15 @@ export async function runDevinWithAccount(options: RunDevinOptions): Promise<num
     heartbeatProfileLock(db, options.account.id);
   }, 30_000);
 
+  const stdout = new RedactedLineStream(process.stdout, parser, sessionId);
+  const stderr = new RedactedLineStream(process.stderr, parser, sessionId);
+
   child.stdout?.on('data', (chunk: Buffer) => {
-    process.stdout.write(chunk);
-    for (const line of chunk.toString('utf8').split(/\r?\n/)) {
-      if (line) {
-        parser.ingestLine(redactText(line));
-      }
-    }
+    stdout.write(chunk);
   });
 
   child.stderr?.on('data', (chunk: Buffer) => {
-    process.stderr.write(chunk);
-    for (const line of chunk.toString('utf8').split(/\r?\n/)) {
-      if (line) {
-        parser.ingestLine(redactText(line));
-      }
-    }
+    stderr.write(chunk);
   });
 
   const exitCode = await new Promise<number | null>((resolve, reject) => {
@@ -74,6 +70,8 @@ export async function runDevinWithAccount(options: RunDevinOptions): Promise<num
     child.on('exit', (code) => resolve(code));
   });
 
+  stdout.flush();
+  stderr.flush();
   clearInterval(heartbeat);
   parser.ingestExit(exitCode);
   const decision = parser.getPrimaryDecision();
@@ -104,7 +102,7 @@ export async function runDevinWithAccount(options: RunDevinOptions): Promise<num
     `UPDATE sessions
      SET ended_at = ?, exit_code = ?, finish_reason = ?, notes = ?
      WHERE id = ?`
-  ).run(endedAt, exitCode, decision.kind === 'limited' ? 'quota_exhausted' : null, decision.kind, sessionId);
+  ).run(endedAt, exitCode, parser.getFinishReason(), decision.kind, sessionId);
   db.prepare('UPDATE accounts SET last_used_at = ? WHERE id = ?').run(endedAt, options.account.id);
   recordEvent(db, {
     kind: 'session_end',
@@ -124,5 +122,73 @@ function summarizeCommand(args: string[]): string {
   if (args.length === 0) {
     return 'devin';
   }
-  return `devin ${args.join(' ')}`.slice(0, 500);
+  return redactText(`devin ${args.join(' ')}`).slice(0, 500);
+}
+
+export class RedactedLineStream {
+  private buffered = '';
+  private suppressingOversizedLine = false;
+
+  constructor(
+    private readonly output: NodeJS.WritableStream,
+    private readonly parser: StreamSignalParser,
+    private readonly sessionId: string
+  ) {}
+
+  write(chunk: Buffer): void {
+    let text = chunk.toString('utf8');
+    if (this.suppressingOversizedLine) {
+      const newlineIndex = text.indexOf('\n');
+      if (newlineIndex === -1) {
+        return;
+      }
+      this.suppressingOversizedLine = false;
+      text = text.slice(newlineIndex + 1);
+    }
+    this.buffered += text;
+    this.drainCompleteLines();
+    if (this.buffered.length > MAX_BUFFERED_LINE_LENGTH) {
+      this.processLine('[DSW: redacted oversized line without newline]\n');
+      this.buffered = '';
+      this.suppressingOversizedLine = true;
+    }
+  }
+
+  flush(): void {
+    if (!this.buffered) {
+      return;
+    }
+    this.processLine(this.buffered);
+    this.buffered = '';
+  }
+
+  private processLine(lineWithNewline: string): void {
+    if (lineWithNewline.length > MAX_BUFFERED_LINE_LENGTH) {
+      this.output.write('[DSW: redacted oversized line]\n');
+      this.parser.ingestLine('[DSW: redacted oversized line]');
+      appendSessionTail(this.sessionId, '[DSW: redacted oversized line]');
+      return;
+    }
+
+    const redactedOutput = redactText(lineWithNewline);
+    this.output.write(redactedOutput);
+
+    const line = lineWithNewline.replace(/\r?\n$/, '');
+    if (!line) {
+      return;
+    }
+    const redactedLine = redactText(line);
+    this.parser.ingestLine(redactedLine);
+    appendSessionTail(this.sessionId, redactedLine);
+  }
+
+  private drainCompleteLines(): void {
+    let newlineIndex = this.buffered.indexOf('\n');
+    while (newlineIndex !== -1) {
+      const lineWithNewline = this.buffered.slice(0, newlineIndex + 1);
+      this.buffered = this.buffered.slice(newlineIndex + 1);
+      this.processLine(lineWithNewline);
+      newlineIndex = this.buffered.indexOf('\n');
+    }
+  }
 }

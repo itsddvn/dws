@@ -39,7 +39,14 @@ The quota state machine consumes signals independent of where they came from.
 
 ## Phase 6 Validation
 
-Add gated live tests or manual checklist for:
+Phase 6 added deterministic shim coverage for structured `finish_reason` parsing and fallback output handling. The shim proves:
+
+- top-level JSON `finish_reason: quota_exhausted` marks the profile limited;
+- JSON-RPC-style `params.finish_reason` is parsed by the shared stream parser;
+- `Turn limit reached` stays informational;
+- `Rate limited:` records a cooldown without marking the profile limited.
+
+Phase 6 also added a gated live suite and manual checklist for:
 
 ```bash
 dsw run primary -- -p "reply ok"
@@ -53,4 +60,4 @@ For each mode, record:
 - Whether output fallback sees quota/auth/rate-limit text.
 - Whether session summary is persisted correctly.
 
-Until then, structured parsing must be optional.
+Until live captures prove mode-specific behavior, structured parsing remains optional and all run modes must retain stdout/stderr fallback behavior.
