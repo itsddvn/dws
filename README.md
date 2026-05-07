@@ -14,9 +14,11 @@ npm link        # exposes the `dsw` binary on your PATH
 Requires Node.js 20+, the `devin` binary on your `PATH`, and `tmux` for
 `dsw quota`.
 
-`npm install` runs a best-effort tmux installer. On macOS it uses Homebrew when
-available. On Linux it tries the available system package manager with `sudo`
-when needed. Set `DSW_SKIP_TMUX_INSTALL=1` to skip this check.
+By default `npm install` only **warns** when tmux is missing. To opt in to
+auto-installing it from `npm install` set `DSW_INSTALL_TMUX=1`; on macOS it
+uses Homebrew, on Linux it falls back to the available package manager with
+`sudo` when needed. Set `DSW_SKIP_TMUX_INSTALL=1` to silence the warning
+entirely.
 
 ## Commands
 
@@ -84,10 +86,21 @@ you can inspect or back up).
 
 ## Environment variables
 
-| Variable          | Purpose                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------ |
-| `DSW_DATA_HOME`   | Override the data directory root (defaults to `~/.dsw`).                             |
-| `DSW_CONFIG_HOME` | Override the config directory root (defaults to the same path as `DSW_DATA_HOME`).   |
+| Variable                     | Purpose                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `DSW_DATA_HOME`              | Override the data directory root (defaults to `~/.dsw`).                                    |
+| `DSW_CONFIG_HOME`            | Override the config directory root (defaults to the same path as `DSW_DATA_HOME`).          |
+| `DSW_SKIP_QUOTA=1`           | Make `dsw` and `dsw next` skip the quota check and pick by least-recently-used instead.     |
+| `DSW_QUOTA_CACHE_TTL_MS`     | Override the quota cache TTL (default 5 minutes). Set `0` to always re-fetch.               |
+| `DSW_QUOTA_TIMEOUT_MS`       | Override the per-account quota timeout (default 15s).                                       |
+| `DSW_QUOTA_STARTUP_DELAY_MS` | Override how long `dsw quota` waits for the Devin REPL to settle (default 4s).              |
+| `DSW_INSTALL_TMUX=1`         | Opt in to having the `npm install` postinstall step install tmux for you (uses `sudo`).     |
+| `DSW_SKIP_TMUX_INSTALL=1`    | Suppress the tmux warning during `npm install`.                                             |
+
+`dsw` and `dsw next` cache quota results under
+`~/.dsw/quota-cache.json` so subsequent invocations within the TTL window
+skip the slow tmux check entirely. `dsw quota` always re-fetches and
+refreshes the cache.
 
 ## Development
 
