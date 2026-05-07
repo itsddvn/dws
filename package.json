@@ -1,6 +1,6 @@
 {
   "name": "@itsddvn/dsw",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Devin CLI account switcher: rotate between accounts and run devin under isolated profiles.",
   "repository": {
     "type": "git",
