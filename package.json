@@ -1,13 +1,33 @@
 {
-  "name": "devin-switcher",
+  "name": "@itsddvn/dsw",
   "version": "0.3.0",
-  "private": true,
-  "description": "Minimal Devin CLI account switcher: rotate between accounts (least-recently-used) and run devin under each.",
+  "description": "Devin CLI account switcher: rotate between accounts and run devin under isolated profiles.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itsddvn/dws.git"
+  },
+  "homepage": "https://github.com/itsddvn/dws#readme",
+  "bugs": {
+    "url": "https://github.com/itsddvn/dws/issues"
+  },
   "bin": {
-    "dsw": "./bin/dsw"
+    "dsw": "bin/dsw"
+  },
+  "files": [
+    "bin",
+    "dist/src",
+    "scripts/ensure-tmux.js",
+    "README.md",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "prepack": "npm run build",
     "dev": "tsx src/cli/index.ts",
     "postinstall": "node scripts/ensure-tmux.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
