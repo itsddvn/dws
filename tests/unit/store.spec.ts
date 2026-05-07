@@ -42,6 +42,14 @@ describe('AccountStore', () => {
     expect(() => store.create('emoji😀')).toThrow();
   });
 
+  it('renames accounts', () => {
+    const store = new AccountStore(sandbox.paths);
+    const created = store.create('pending');
+    const renamed = store.rename(created.id, 'primary');
+    expect(renamed.name).toBe('primary');
+    expect(store.list().map((account) => account.name)).toEqual(['primary']);
+  });
+
   it('updates auth metadata and clears needsLogin', () => {
     const store = new AccountStore(sandbox.paths);
     const created = store.create('work');

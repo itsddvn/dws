@@ -58,7 +58,8 @@ describe('dsw CLI', () => {
   it('prints help with all PRD commands', async () => {
     const result = await runCli(sandbox, ['--help']);
     expect(result.exitCode).toBe(0);
-    for (const command of ['list', 'quota', 'add', 'remove', 'login', 'doctor']) {
+    expect(result.stdout).not.toContain('quota');
+    for (const command of ['list', 'add', 'remove', 'login', 'next', 'update', 'doctor']) {
       expect(result.stdout).toContain(command);
     }
   });
@@ -79,6 +80,23 @@ describe('dsw CLI', () => {
     expect(listAfter.stdout).toContain('No Devin accounts');
   });
 
+  it('add without a name infers the account name after login', async () => {
+    const add = await runCli(sandbox, ['add'], { DSW_FAKE_NAME: 'Jane Devin' });
+    expect(add.exitCode, `add stdout=${add.stdout} stderr=${add.stderr}`).toBe(0);
+    expect(add.stdout).toMatch(/Added jane-devin/);
+
+    const list = await runCli(sandbox, ['list']);
+    expect(list.exitCode).toBe(0);
+    expect(list.stdout).toContain('jane-devin');
+    expect(list.stdout).toContain('fake@example.com');
+  });
+
+  it('add without a name falls back to the email local part', async () => {
+    const add = await runCli(sandbox, ['add'], { DSW_FAKE_EMAIL: 'person@example.com' });
+    expect(add.exitCode, `add stdout=${add.stdout} stderr=${add.stderr}`).toBe(0);
+    expect(add.stdout).toMatch(/Added person/);
+  });
+
   it('refuses remove without --yes', async () => {
     await runCli(sandbox, ['add', 'tmp']);
     const result = await runCli(sandbox, ['remove', 'tmp']);
@@ -86,7 +104,7 @@ describe('dsw CLI', () => {
     expect(result.stderr).toMatch(/--yes/);
   });
 
-  it('default command rotates between accounts (least-recently-used wins)', async () => {
+  it('default command rotates between accounts (least-recently-used wins), while next uses list order', async () => {
     await runCli(sandbox, ['add', 'one']);
     await runCli(sandbox, ['add', 'two']);
 
@@ -108,24 +126,21 @@ describe('dsw CLI', () => {
     expect(second.stderr).toMatch(/Selected one/);
   });
 
-  it('quota prints the per-account usage URL using the org id stored after add', async () => {
-    await runCli(sandbox, ['add', 'p']);
-    const store = new AccountStore(sandbox.paths);
-    store.reload();
-    const account = store.list().find((entry) => entry.name === 'p')!;
-    // Simulate the org_id that `devin setup` would have written into the
-    // per-profile config.json.
-    const profileConfigDir = path.join(sandbox.paths.profilesDir, account.id, 'config', 'devin');
-    fs.mkdirSync(profileConfigDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(profileConfigDir, 'config.json'),
-      JSON.stringify({ devin: { org_id: 'org-test-1' } })
-    );
+  it('next forwards devin options', async () => {
+    await runCli(sandbox, ['add', 'one']);
 
-    const result = await runCli(sandbox, ['quota']);
+    const result = await runCli(sandbox, ['next', '-p', 'hello']);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain('org-test-1');
-    expect(result.stdout).toContain('https://app.devin.ai/org/org-test-1/settings/usage');
+    expect(result.stderr).toMatch(/Selected one/);
+    expect(result.stdout).toMatch(/-p.*hello/);
+  });
+
+  it('update --dry-run prints the local checkout update steps', async () => {
+    const result = await runCli(sandbox, ['update', '--dry-run']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('git pull --ff-only');
+    expect(result.stdout).toContain('npm install');
+    expect(result.stdout).toContain('npm run build');
   });
 
   it('doctor reports paths and the devin binary version', async () => {

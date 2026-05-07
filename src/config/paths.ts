@@ -16,11 +16,16 @@ function expandHome(input: string): string {
   return input;
 }
 
+function resolveUserPath(input: string): string {
+  const expanded = expandHome(input);
+  return path.resolve(expanded);
+}
+
 export function resolveAppPaths(env: NodeJS.ProcessEnv = process.env): AppPaths {
-  const dataHome = expandHome(env.DSW_DATA_HOME ?? env.XDG_DATA_HOME ?? path.join(os.homedir(), '.local', 'share'));
-  const configHome = expandHome(env.DSW_CONFIG_HOME ?? env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'));
-  const appDataDir = path.join(dataHome, 'devin-switcher');
-  const appConfigDir = path.join(configHome, 'devin-switcher');
+  const dataHome = resolveUserPath(env.DSW_DATA_HOME ?? path.join(os.homedir(), '.dsw'));
+  const configHome = resolveUserPath(env.DSW_CONFIG_HOME ?? dataHome);
+  const appDataDir = dataHome;
+  const appConfigDir = configHome;
 
   return {
     dataHome,

@@ -24,8 +24,3 @@ export function readProfileOrgId(profileId: string, appPaths: AppPaths = resolve
     return null;
   }
 }
-
-export function usageUrlForOrg(orgId: string | null): string {
-  if (!orgId) return 'https://app.devin.ai/settings/usage';
-  return `https://app.devin.ai/org/${encodeURIComponent(orgId)}/settings/usage`;
-}

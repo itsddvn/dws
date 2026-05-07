@@ -33,6 +33,25 @@ export function pickNextAccount(accounts: Account[]): Account | null {
   return [...eligible].sort(compareLeastRecentlyUsed)[0]!;
 }
 
+/**
+ * Pick the next eligible account in configured list order. The current account
+ * is inferred from the most recently used account, then selection wraps.
+ */
+export function pickNextAccountInList(accounts: Account[]): Account | null {
+  const eligible = accounts.filter((account) => !account.needsLogin);
+  if (eligible.length === 0) return null;
+
+  const currentIndex = findMostRecentlyUsedIndex(accounts);
+  if (currentIndex === -1) return eligible[0]!;
+
+  for (let offset = 1; offset <= accounts.length; offset += 1) {
+    const candidate = accounts[(currentIndex + offset) % accounts.length]!;
+    if (!candidate.needsLogin) return candidate;
+  }
+
+  return null;
+}
+
 function compareLeastRecentlyUsed(left: Account, right: Account): number {
   const leftLast = left.lastUsedAt ?? 0;
   const rightLast = right.lastUsedAt ?? 0;
@@ -40,4 +59,19 @@ function compareLeastRecentlyUsed(left: Account, right: Account): number {
   // Tie break: created earlier first (deterministic).
   if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
   return left.name.localeCompare(right.name);
+}
+
+function findMostRecentlyUsedIndex(accounts: Account[]): number {
+  let bestIndex = -1;
+  let bestLastUsed = -1;
+
+  accounts.forEach((account, index) => {
+    const lastUsed = account.lastUsedAt ?? -1;
+    if (lastUsed > bestLastUsed) {
+      bestIndex = index;
+      bestLastUsed = lastUsed;
+    }
+  });
+
+  return bestIndex;
 }

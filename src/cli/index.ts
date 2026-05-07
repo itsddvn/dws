@@ -4,17 +4,19 @@ import { runDefault } from './commands/default';
 import { runDoctor } from './commands/doctor';
 import { runList } from './commands/list';
 import { runLogin } from './commands/login';
-import { runQuota } from './commands/quota';
+import { runNext } from './commands/next';
 import { runRemove } from './commands/remove';
+import { runUpdate } from './commands/update';
 
 const SUBCOMMANDS = new Set([
   'list',
   'ls',
-  'quota',
   'add',
   'remove',
   'rm',
   'login',
+  'next',
+  'update',
   'doctor',
   'help',
   '--help',
@@ -40,7 +42,7 @@ export async function main(argv = process.argv): Promise<void> {
 
   program.addHelpText(
     'after',
-    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Print Devin usage URLs (run with --open to launch in browser)\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n`
+    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw next            Pick the next account in list order and run devin\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
   );
 
   program
@@ -52,19 +54,10 @@ export async function main(argv = process.argv): Promise<void> {
     });
 
   program
-    .command('quota')
-    .description('Print each account\u2019s Devin usage URL (open Devin\u2019s webapp to view actual numbers)')
-    .argument('[name]', 'Optional account name')
-    .option('--open', 'Open the URL in your default browser')
-    .action(async (name: string | undefined, options: { open?: boolean }) => {
-      await runQuota({ name, open: options.open });
-    });
-
-  program
     .command('add')
     .description('Add a new Devin account and run `devin auth login` for it')
-    .argument('<name>', 'Account name (letters, numbers, _, -)')
-    .action(async (name: string) => {
+    .argument('[name]', 'Account name (letters, numbers, _, -). If omitted, inferred after login.')
+    .action(async (name: string | undefined) => {
       await runAdd(name);
     });
 
@@ -84,6 +77,23 @@ export async function main(argv = process.argv): Promise<void> {
     .argument('<name>', 'Account name')
     .action(async (name: string) => {
       await runLogin(name);
+    });
+
+  program
+    .command('next')
+    .description('Run devin using the next ready account in configured list order')
+    .allowUnknownOption(true)
+    .argument('[args...]', 'Arguments to forward to devin')
+    .action(async (args: string[]) => {
+      await runNext({ args });
+    });
+
+  program
+    .command('update')
+    .description('Update this dsw install')
+    .option('--dry-run', 'Print update commands without running them')
+    .action(async (options: { dryRun?: boolean }) => {
+      await runUpdate({ dryRun: options.dryRun });
     });
 
   program

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickNextAccount } from '../../src/core/runner';
+import { pickNextAccount, pickNextAccountInList } from '../../src/core/runner';
 import type { Account } from '../../src/core/store';
 
 function makeAccount(overrides: Partial<Account>): Account {
@@ -54,5 +54,38 @@ describe('pickNextAccount', () => {
   it('returns null when no accounts are eligible', () => {
     const accounts = [makeAccount({ name: 'a', needsLogin: true })];
     expect(pickNextAccount(accounts)).toBeNull();
+  });
+});
+
+describe('pickNextAccountInList', () => {
+  it('returns the first eligible account when no account has been used', () => {
+    const accounts = [
+      makeAccount({ name: 'a', lastUsedAt: null }),
+      makeAccount({ name: 'b', lastUsedAt: null })
+    ];
+    expect(pickNextAccountInList(accounts)?.name).toBe('a');
+  });
+
+  it('returns the next eligible account after the most recently used account', () => {
+    const accounts = [
+      makeAccount({ name: 'a', lastUsedAt: 10 }),
+      makeAccount({ name: 'b', lastUsedAt: 30 }),
+      makeAccount({ name: 'c', lastUsedAt: 20 })
+    ];
+    expect(pickNextAccountInList(accounts)?.name).toBe('c');
+  });
+
+  it('wraps and skips accounts that need login', () => {
+    const accounts = [
+      makeAccount({ name: 'a', lastUsedAt: 10 }),
+      makeAccount({ name: 'b', lastUsedAt: null, needsLogin: true }),
+      makeAccount({ name: 'c', lastUsedAt: 30 })
+    ];
+    expect(pickNextAccountInList(accounts)?.name).toBe('a');
+  });
+
+  it('returns null when no accounts are eligible', () => {
+    const accounts = [makeAccount({ name: 'a', needsLogin: true })];
+    expect(pickNextAccountInList(accounts)).toBeNull();
   });
 });

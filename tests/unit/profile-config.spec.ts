@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readProfileOrgId, usageUrlForOrg } from '../../src/core/profile-config';
+import { readProfileOrgId } from '../../src/core/profile-config';
 import { ensureProfileDirs } from '../../src/core/profile-paths';
 import { createSandbox, type Sandbox } from '../helpers/sandbox';
 
@@ -35,19 +35,5 @@ describe('readProfileOrgId', () => {
       JSON.stringify({ devin: { org_id: 'org-abc-123' }, theme_mode: 'dark' })
     );
     expect(readProfileOrgId('profile-z', sandbox.paths)).toBe('org-abc-123');
-  });
-});
-
-describe('usageUrlForOrg', () => {
-  it('falls back to the org-less url when no org id is known', () => {
-    expect(usageUrlForOrg(null)).toBe('https://app.devin.ai/settings/usage');
-  });
-
-  it('builds a per-org url when given an org id', () => {
-    expect(usageUrlForOrg('org-abc')).toBe('https://app.devin.ai/org/org-abc/settings/usage');
-  });
-
-  it('url-encodes weird org ids', () => {
-    expect(usageUrlForOrg('foo/bar')).toBe('https://app.devin.ai/org/foo%2Fbar/settings/usage');
   });
 });

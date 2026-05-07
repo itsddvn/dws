@@ -46,11 +46,7 @@ export class AccountStore {
   }
 
   create(name: string): Account {
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error('Account name is required');
-    if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
-      throw new Error('Account name may only contain letters, numbers, underscores, and dashes');
-    }
+    const trimmed = validateAccountName(name);
     const file = this.load();
     if (file.accounts.some((account) => account.name === trimmed)) {
       throw new Error(`Account already exists: ${trimmed}`);
@@ -69,6 +65,19 @@ export class AccountStore {
     file.accounts.push(account);
     this.save(file);
     return account;
+  }
+
+  rename(id: string, name: string): Account {
+    const trimmed = validateAccountName(name);
+    const file = this.load();
+    const index = file.accounts.findIndex((account) => account.id === id);
+    if (index === -1) throw new Error(`Account not found by id: ${id}`);
+    if (file.accounts.some((account) => account.id !== id && account.name === trimmed)) {
+      throw new Error(`Account already exists: ${trimmed}`);
+    }
+    file.accounts[index] = { ...file.accounts[index]!, name: trimmed };
+    this.save(file);
+    return file.accounts[index]!;
   }
 
   remove(name: string): Account {
@@ -147,6 +156,15 @@ export class AccountStore {
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
+}
+
+function validateAccountName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Account name is required');
+  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
+    throw new Error('Account name may only contain letters, numbers, underscores, and dashes');
+  }
+  return trimmed;
 }
 
 function normalizeAccount(raw: unknown): Account {

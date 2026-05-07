@@ -13,6 +13,7 @@
 //   DSW_FAKE_DAILY_PCT=42    -> override the daily remaining percentage
 //   DSW_FAKE_WEEKLY_PCT=70   -> override the weekly remaining percentage
 //   DSW_FAKE_EMAIL=foo@bar   -> override the email used by auth status
+//   DSW_FAKE_NAME=Foo Bar     -> override the name used by auth status
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,6 +48,7 @@ function authStatus(): number {
     return 0;
   }
   console.log('Logged in.');
+  if (process.env.DSW_FAKE_NAME) console.log(`Name: ${process.env.DSW_FAKE_NAME}`);
   console.log(`Email: ${process.env.DSW_FAKE_EMAIL ?? 'fake@example.com'}`);
   console.log('Tier: pro');
   console.log('Plan: Pro Monthly');
