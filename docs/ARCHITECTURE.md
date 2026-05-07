@@ -396,7 +396,7 @@ flowchart TB
 **Decision:** Publish as `@itsddvn/dsw`, expose the `dsw` binary through package `bin`, and ship only runtime files in the npm tarball.
 **Consequences:**
 - Positive: Global npm installs work without a git checkout.
-- Negative: Release process must keep package version, lock version, CLI version output, and tarball contents aligned.
+- Negative: Release process must keep package version, lock version, CLI version output, docs, tests, and tarball contents aligned before commit, push, and npm publish.
 - Neutral: Git checkout installs remain supported through `npm link`.
 **Alternatives considered:**
 - Unscoped package - rejected because the short package name is unrelated/unavailable.

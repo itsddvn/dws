@@ -171,7 +171,7 @@
 
 - Per change: run typecheck, lint, tests, and build.
 - Per docs update: update change logs and traceability.
-- Before release: verify package manifest/lock metadata, command help/version, `npm pack --dry-run`, and fake Devin integration suite.
+- Before release: follow `docs/RELEASE.md`; update all version references, verify, commit, push, and only then publish npm.
 
 ## 9. Glossary
 

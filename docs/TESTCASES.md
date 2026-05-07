@@ -417,7 +417,8 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run `npm pack --dry-run`.
 4. Verify tarball file list includes runtime files only.
 5. Verify `dsw --version` matches `package.json`.
-**Expected Result:** Package is installable with `npm install -g @itsddvn/dsw` and exposes `dsw`.
+6. Verify the release commit is pushed before `npm publish`.
+**Expected Result:** Package is installable with `npm install -g @itsddvn/dsw`, exposes `dsw`, and is published only after codebase version references are aligned, committed, and pushed.
 **Implementation:** npm commands plus package manifest.
 **Notes:** Blocks public npm release when metadata drifts.
 
