@@ -5,14 +5,35 @@ rotates between them so no single account gets exhausted.
 
 ## Install
 
+Requires Node.js 20+, the `devin` binary on your `PATH`, and `tmux` for
+`dsw quota`.
+
+### Option 1 — install from npm (recommended)
+
 ```bash
+npm install -g @itsddvn/dsw
+```
+
+`dsw` is now on your `PATH`. Upgrade with `dsw update` (or
+`npm install -g @itsddvn/dsw@latest`).
+
+### Option 2 — install from a GitHub checkout
+
+Use this when you want to hack on the code or run an unreleased branch:
+
+```bash
+git clone https://github.com/itsddvn/dws.git
+cd dws
 npm install
 npm run build
 npm link        # exposes the `dsw` binary on your PATH
 ```
 
-Requires Node.js 20+, the `devin` binary on your `PATH`, and `tmux` for
-`dsw quota`.
+`dsw update` from a git checkout runs `git pull --ff-only`,
+`npm install`, and `npm run build` for you, so subsequent updates are
+just `dsw update`.
+
+### tmux
 
 By default `npm install` only **warns** when tmux is missing. To opt in to
 auto-installing it from `npm install` set `DSW_INSTALL_TMUX=1`; on macOS it
