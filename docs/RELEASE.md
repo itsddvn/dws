@@ -28,12 +28,20 @@ Publishing before commit and push is not allowed.
 
 Before publishing a new version, update every current project-version reference:
 
-- `package.json` version.
-- `package-lock.json` root version and root package version.
-- CLI `dsw --version` output in `src/cli/index.ts`.
-- Tests that assert version behavior.
-- README and product docs that describe the current package version or release identity.
-- Release plan and review/report docs that claim package metadata is aligned.
+| File | Required update/check |
+|------|-----------------------|
+| `package.json` | Update `version` to the target npm version. |
+| `package-lock.json` | Update top-level `version` and `packages[""].version` to match `package.json`. |
+| `src/cli/index.ts` | Update Commander `.version(...)` so `dsw --version` matches `package.json`. |
+| `tests/integration/cli.spec.ts` | Keep the version test tied to `package.json` and confirm it passes. |
+| `README.md` | Update any current install, upgrade, or package-version wording when it names a specific release. |
+| `docs/RELEASE.md` | Update this checklist if the release process or required files change. |
+| `docs/ROADMAP.md` | Update current release plan, release tag, and any package metadata alignment statements. |
+| `docs/TECHSTACK.md` | Update npm package identity/version and package distribution references. |
+| `docs/PRD.md` | Update the product decision row that names the winning package version source. |
+| `docs/TESTCASES.md` | Update expected version output and release verification steps. |
+| `docs/REVIEW_REPORT.md` | Update any current package identity or metadata alignment statements. |
+| Other `docs/*.md` | Scan and update any current release identity, package version, or go-live note. |
 
 After updates, scan for stale project versions:
 
