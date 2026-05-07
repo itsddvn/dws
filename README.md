@@ -11,7 +11,12 @@ npm run build
 npm link        # exposes the `dsw` binary on your PATH
 ```
 
-Requires Node.js 20+ and the `devin` binary on your `PATH`.
+Requires Node.js 20+, the `devin` binary on your `PATH`, and `tmux` for
+`dsw quota`.
+
+`npm install` runs a best-effort tmux installer. On macOS it uses Homebrew when
+available. On Linux it tries the available system package manager with `sudo`
+when needed. Set `DSW_SKIP_TMUX_INSTALL=1` to skip this check.
 
 ## Commands
 
@@ -19,7 +24,9 @@ Requires Node.js 20+ and the `devin` binary on your `PATH`.
 | ------------------------------- | --------------------------------------------------------------------------------------------- |
 | `dsw [args...]`                 | Picks the least-recently-used account and runs `devin` under it. Forwards args to `devin`.    |
 | `dsw next [args...]`            | Picks the next ready account in configured list order and runs `devin` under it.              |
+| `dsw use <name> [args...]`      | Runs `devin` under a specific ready account by name.                                         |
 | `dsw list` / `dsw ls`           | Lists configured accounts with status, plan, and last-used time.                              |
+| `dsw quota`                     | Runs Devin usage reporting under each ready account and summarizes remaining quota.           |
 | `dsw add [name]`                | Creates a new isolated profile and runs `devin auth login` inside it.                         |
 | `dsw login <name>`              | Re-runs `devin auth login` for an existing profile (e.g. when the token expires).             |
 | `dsw remove <name> --yes`       | Deletes the account record and its on-disk credentials.                                       |
@@ -36,6 +43,15 @@ to spread runs across accounts.
 Use `dsw next` when you want explicit list-order rotation instead. It finds the
 most recently used account, picks the next ready account from `dsw list`, and
 wraps around at the end.
+
+Use `dsw use <name>` when you want to bypass rotation and run a specific
+account directly. Extra arguments are forwarded to Devin, so
+`dsw use work -p "fix bug"` runs `devin -p "fix bug"` with the `work` profile.
+
+Use `dsw quota` to check all managed accounts. It runs `devin -p /usage` inside
+each account profile, parses the tier, used percentage, remaining percentage,
+and reset time when present, skips accounts marked as needing login, and reports
+per-account failures without stopping the whole scan.
 
 When you run `dsw add` without a name, `dsw` opens `devin auth login`, then
 reads `devin auth status` and names the account from the reported Name field,

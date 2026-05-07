@@ -5,8 +5,10 @@ import { runDoctor } from './commands/doctor';
 import { runList } from './commands/list';
 import { runLogin } from './commands/login';
 import { runNext } from './commands/next';
+import { runQuota } from './commands/quota';
 import { runRemove } from './commands/remove';
 import { runUpdate } from './commands/update';
+import { runUse } from './commands/use';
 
 const SUBCOMMANDS = new Set([
   'list',
@@ -16,6 +18,8 @@ const SUBCOMMANDS = new Set([
   'rm',
   'login',
   'next',
+  'use',
+  'quota',
   'update',
   'doctor',
   'help',
@@ -42,7 +46,7 @@ export async function main(argv = process.argv): Promise<void> {
 
   program.addHelpText(
     'after',
-    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw next            Pick the next account in list order and run devin\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
+    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw next            Pick the next account in list order and run devin\n  $ dsw use work        Run devin using the 'work' account\n  $ dsw use work -p "fix bug"\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Show quota/usage for all ready accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
   );
 
   program
@@ -86,6 +90,23 @@ export async function main(argv = process.argv): Promise<void> {
     .argument('[args...]', 'Arguments to forward to devin')
     .action(async (args: string[]) => {
       await runNext({ args });
+    });
+
+  program
+    .command('use')
+    .description('Run devin using a specific account')
+    .allowUnknownOption(true)
+    .argument('<name>', 'Account name')
+    .argument('[args...]', 'Arguments to forward to devin')
+    .action(async (name: string, args: string[]) => {
+      await runUse({ name, args });
+    });
+
+  program
+    .command('quota')
+    .description('Check usage/quota for all configured Devin accounts')
+    .action(async () => {
+      await runQuota();
     });
 
   program

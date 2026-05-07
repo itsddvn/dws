@@ -23,6 +23,15 @@ export async function runDoctor(): Promise<void> {
   }
   console.log(`  devin: ${devinVersion ?? 'not found'}`);
 
+  let tmuxVersion: string | null = null;
+  try {
+    const result = await runCapture('tmux', ['-V'], { timeoutMs: 10_000 });
+    if (result.exitCode === 0) tmuxVersion = result.stdout.trim().split('\n')[0] ?? null;
+  } catch (error) {
+    tmuxVersion = `error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  console.log(`  tmux: ${tmuxVersion ?? 'not found'}`);
+
   const store = new AccountStore(paths);
   const accounts = store.list();
   console.log(`  accounts: ${accounts.length}`);
@@ -33,6 +42,10 @@ export async function runDoctor(): Promise<void> {
 
   if (!devinVersion || devinVersion.startsWith('error:')) {
     console.error('warning: devin CLI was not detected in PATH.');
+    process.exitCode = 1;
+  }
+  if (!tmuxVersion || tmuxVersion.startsWith('error:')) {
+    console.error('warning: tmux was not detected in PATH. `dsw quota` requires tmux.');
     process.exitCode = 1;
   }
 }

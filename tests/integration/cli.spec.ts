@@ -58,8 +58,7 @@ describe('dsw CLI', () => {
   it('prints help with all PRD commands', async () => {
     const result = await runCli(sandbox, ['--help']);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).not.toContain('quota');
-    for (const command of ['list', 'add', 'remove', 'login', 'next', 'update', 'doctor']) {
+    for (const command of ['list', 'add', 'remove', 'login', 'next', 'use', 'quota', 'update', 'doctor']) {
       expect(result.stdout).toContain(command);
     }
   });
@@ -135,6 +134,51 @@ describe('dsw CLI', () => {
     expect(result.stdout).toMatch(/-p.*hello/);
   });
 
+  it('use runs a specific account and forwards devin options', async () => {
+    await runCli(sandbox, ['add', 'one']);
+    await runCli(sandbox, ['add', 'two']);
+
+    const result = await runCli(sandbox, ['use', 'two', '-p', 'hello']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toMatch(/Selected two/);
+    expect(result.stdout).toMatch(/-p.*hello/);
+
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const two = store.list().find((account) => account.name === 'two')!;
+    expect(two.lastUsedAt).toEqual(expect.any(Number));
+  });
+
+  it('quota checks every ready account and skips accounts needing login', async () => {
+    await runCli(sandbox, ['add', 'one']);
+    await runCli(sandbox, ['add', 'two']);
+
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const two = store.list().find((account) => account.name === 'two')!;
+    store.markNeedsLogin(two.id);
+
+    const result = await runCli(sandbox, ['quota'], {
+      DSW_QUOTA_STARTUP_DELAY_MS: '100',
+      DSW_QUOTA_TIMEOUT_MS: '3000',
+      DSW_FAKE_QUOTA_USED: '12',
+      DSW_FAKE_QUOTA_REMAINING: '88',
+      DSW_FAKE_QUOTA_RESETS_IN: '4h 20m',
+      DSW_FAKE_QUOTA_RESET_AT: 'May 7, 3:00 PM (UTC+7)'
+    });
+
+    expect(result.exitCode, `quota stdout=${result.stdout} stderr=${result.stderr}`).toBe(0);
+    expect(result.stdout).toContain('one');
+    expect(result.stdout).toContain('ok');
+    expect(result.stdout).toContain('Trial');
+    expect(result.stdout).toContain('12%');
+    expect(result.stdout).toContain('88%');
+    expect(result.stdout).toContain('4h 20m');
+    expect(result.stdout).toContain('May 7, 3:00 PM (UTC+7)');
+    expect(result.stdout).toMatch(/two\s+needs login/);
+  });
+
   it('update --dry-run prints the local checkout update steps', async () => {
     const result = await runCli(sandbox, ['update', '--dry-run']);
     expect(result.exitCode).toBe(0);
@@ -148,6 +192,7 @@ describe('dsw CLI', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('devin-switcher doctor');
     expect(result.stdout).toMatch(/devin: devin 0\.0\.0-fake/);
+    expect(result.stdout).toMatch(/tmux: tmux /);
   });
 
   it('login marks an account as needs-login when devin auth login fails', async () => {

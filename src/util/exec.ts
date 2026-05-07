@@ -5,6 +5,7 @@ export interface RunResult {
   stderr: string;
   exitCode: number | null;
   signal: NodeJS.Signals | null;
+  timedOut: boolean;
 }
 
 export interface RunOptions {
@@ -24,6 +25,7 @@ export function runCapture(command: string, args: string[], options: RunOptions 
     let stdout = '';
     let stderr = '';
     let timer: NodeJS.Timeout | null = null;
+    let timedOut = false;
 
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
@@ -34,6 +36,7 @@ export function runCapture(command: string, args: string[], options: RunOptions 
 
     if (options.timeoutMs && options.timeoutMs > 0) {
       timer = setTimeout(() => {
+        timedOut = true;
         child.kill('SIGTERM');
       }, options.timeoutMs);
     }
@@ -44,7 +47,7 @@ export function runCapture(command: string, args: string[], options: RunOptions 
     });
     child.on('exit', (code, signal) => {
       if (timer) clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode: code, signal });
+      resolve({ stdout, stderr, exitCode: code, signal, timedOut });
     });
   });
 }
