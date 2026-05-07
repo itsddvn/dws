@@ -159,4 +159,32 @@ describe('pickBestAccountByQuota', () => {
 
     expect(pickBestAccountByQuota([empty], [makeQuota(empty, { status: 'ok', summary: { remainingPercent: '0%' } })])).toBeNull();
   });
+
+  it('falls through to unknown candidates after positive but before fallback', () => {
+    const positive = makeAccount({ name: 'positive', lastUsedAt: 100 });
+    const unknown = makeAccount({ name: 'unknown', lastUsedAt: 50 });
+    const fallback = makeAccount({ name: 'fallback', lastUsedAt: 10 });
+
+    expect(
+      pickBestAccountByQuota(
+        [positive, unknown, fallback],
+        [
+          makeQuota(positive, { summary: { remainingPercent: '40%' } }),
+          makeQuota(unknown, { status: 'ok', summary: {} }),
+          makeQuota(fallback, { status: 'error', exitCode: 1 })
+        ]
+      )?.name
+    ).toBe('positive');
+
+    // Drop the positive candidate; unknown should win over fallback.
+    expect(
+      pickBestAccountByQuota(
+        [unknown, fallback],
+        [
+          makeQuota(unknown, { status: 'ok', summary: {} }),
+          makeQuota(fallback, { status: 'error', exitCode: 1 })
+        ]
+      )?.name
+    ).toBe('unknown');
+  });
 });

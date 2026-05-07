@@ -11,15 +11,19 @@ export interface RunDevinOptions {
   baseEnv?: NodeJS.ProcessEnv;
 }
 
-export async function runDevinForAccount(store: AccountStore, account: Account, options: RunDevinOptions): Promise<number | null> {
+export function runDevinForAccount(store: AccountStore, account: Account, options: RunDevinOptions): Promise<number | null> {
   const appPaths = options.appPaths ?? resolveAppPaths();
   const baseEnv = options.baseEnv ?? process.env;
-  store.touchLastUsed(account.id);
 
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const child = spawn('devin', options.args, {
       env: buildProfileEnv(account.id, appPaths, baseEnv),
       stdio: 'inherit'
+    });
+    // Only mark the account as used once devin has actually started, so a
+    // failed spawn (ENOENT / EACCES) does not skew LRU rotation.
+    child.on('spawn', () => {
+      store.touchLastUsed(account.id);
     });
     child.on('error', reject);
     child.on('exit', (code) => {

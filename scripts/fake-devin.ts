@@ -19,6 +19,10 @@
 //   DSW_FAKE_USAGE_HANG=1          -> keep /usage running until killed
 //   DSW_FAKE_EMAIL=foo@bar   -> override the email used by auth status
 //   DSW_FAKE_NAME=Foo Bar     -> override the name used by auth status
+//
+// When invoked with no args the shim drops into a tiny interactive REPL
+// that responds to `/usage` and `/exit`, matching the way the tmux quota
+// path drives the real devin CLI.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -119,7 +123,15 @@ function interactive(): void {
 }
 
 function main(): number | void {
-  if (args.length === 0 && process.env.DSW_FAKE_INTERACTIVE === '1') return interactive();
+  // Only enter the interactive REPL when launched inside a tmux session
+  // (the path `dsw quota` uses). When `dsw default` / `dsw next` spawns
+  // devin without args, the test shim should exit quickly so vitest does
+  // not hang waiting on a non-existent prompt.
+  if (args.length === 0 && process.env.TMUX) return interactive();
+  if (args.length === 0) {
+    console.log('fake-devin invoked with no args');
+    return 0;
+  }
   if (args[0] === '--version') {
     console.log('devin 0.0.0-fake');
     return 0;

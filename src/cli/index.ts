@@ -10,34 +10,9 @@ import { runRemove } from './commands/remove';
 import { runUpdate } from './commands/update';
 import { runUse } from './commands/use';
 
-const SUBCOMMANDS = new Set([
-  'list',
-  'ls',
-  'add',
-  'remove',
-  'rm',
-  'login',
-  'next',
-  'use',
-  'quota',
-  'update',
-  'doctor',
-  'help',
-  '--help',
-  '-h',
-  '--version',
-  '-V'
-]);
+const HELP_TOKENS = new Set(['help', '--help', '-h', '--version', '-V']);
 
-export async function main(argv = process.argv): Promise<void> {
-  const args = argv.slice(2);
-  const first = args[0];
-
-  if (!first || !SUBCOMMANDS.has(first)) {
-    await runDefault({ args });
-    return;
-  }
-
+function buildProgram(): Command {
   const program = new Command();
   program
     .name('dsw')
@@ -123,6 +98,28 @@ export async function main(argv = process.argv): Promise<void> {
     .action(async () => {
       await runDoctor();
     });
+
+  return program;
+}
+
+function knownTokens(program: Command): Set<string> {
+  const tokens = new Set<string>(HELP_TOKENS);
+  for (const command of program.commands) {
+    tokens.add(command.name());
+    for (const alias of command.aliases()) tokens.add(alias);
+  }
+  return tokens;
+}
+
+export async function main(argv = process.argv): Promise<void> {
+  const args = argv.slice(2);
+  const program = buildProgram();
+  const first = args[0];
+
+  if (!first || !knownTokens(program).has(first)) {
+    await runDefault({ args });
+    return;
+  }
 
   await program.parseAsync(argv);
 }

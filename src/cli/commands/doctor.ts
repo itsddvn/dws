@@ -6,13 +6,10 @@ import { runCapture } from '../../util/exec';
 export async function runDoctor(): Promise<void> {
   const paths = resolveAppPaths();
   console.log('devin-switcher doctor');
-  console.log(`  data dir: ${paths.appDataDir}`);
-  console.log(`  config dir: ${paths.appConfigDir}`);
-  console.log(`  store: ${paths.storePath}`);
-  console.log(`  profiles: ${paths.profilesDir}`);
-
-  fs.mkdirSync(paths.appDataDir, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(paths.profilesDir, { recursive: true, mode: 0o700 });
+  console.log(`  data dir: ${paths.appDataDir}${dirExists(paths.appDataDir) ? '' : ' (missing)'}`);
+  console.log(`  config dir: ${paths.appConfigDir}${dirExists(paths.appConfigDir) ? '' : ' (missing)'}`);
+  console.log(`  store: ${paths.storePath}${fs.existsSync(paths.storePath) ? '' : ' (missing)'}`);
+  console.log(`  profiles: ${paths.profilesDir}${dirExists(paths.profilesDir) ? '' : ' (missing)'}`);
 
   let devinVersion: string | null = null;
   try {
@@ -47,5 +44,13 @@ export async function runDoctor(): Promise<void> {
   if (!tmuxVersion || tmuxVersion.startsWith('error:')) {
     console.error('warning: tmux was not detected in PATH. `dsw quota` requires tmux.');
     process.exitCode = 1;
+  }
+}
+
+function dirExists(dir: string): boolean {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
   }
 }
