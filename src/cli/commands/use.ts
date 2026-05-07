@@ -18,6 +18,6 @@ export async function runUse(options: UseCommandOptions): Promise<void> {
   }
 
   process.stderr.write(`Selected ${account.name} (last used: ${formatTimestamp(account.lastUsedAt)})\n`);
-  const exitCode = await runDevinForAccount(store, account, { args: options.args, autoRotate: true });
+  const exitCode = await runDevinForAccount(store, account, { args: options.args, autoRotate: false });
   process.exitCode = exitCode ?? 0;
 }

@@ -2,12 +2,14 @@ export type OutputTrigger = 'quota' | 'recoverable-error';
 
 export class OutputWatcher {
   private lastTriggerAt = 0;
+  private buffer = '';
 
   constructor(private readonly debounceMs = 10_000) {}
 
   push(chunk: string): OutputTrigger | null {
     const cleaned = stripAnsi(chunk);
-    const trigger = detectTrigger(cleaned);
+    this.buffer = (this.buffer + cleaned).slice(-4_000);
+    const trigger = detectTrigger(this.buffer);
     if (!trigger) return null;
     const now = Date.now();
     if (now - this.lastTriggerAt < this.debounceMs) return null;

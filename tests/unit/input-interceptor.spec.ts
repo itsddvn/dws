@@ -28,6 +28,24 @@ describe('InputInterceptor', () => {
     expect(interceptor.push('\\:rotate\r')).toEqual({ passThrough: '\\:rotate\r', localEcho: '', rotate: false });
   });
 
+  it('flushes non-rotate colon-prefixed input to Devin without dropping the colon', () => {
+    const interceptor = new InputInterceptor();
+
+    expect(interceptor.push(':')).toEqual({ passThrough: '', localEcho: ':', rotate: false });
+    expect(interceptor.push('f')).toEqual({ passThrough: ':f', localEcho: '\b \b', rotate: false });
+    expect(interceptor.push('oo\r')).toEqual({ passThrough: 'oo\r', localEcho: '', rotate: false });
+  });
+
+  it('flushes locally echoed whitespace when a candidate line is not rotate', () => {
+    const interceptor = new InputInterceptor();
+
+    expect(interceptor.push('  :nope\r')).toEqual({
+      passThrough: '  :nope\r',
+      localEcho: '  :\b \b\b \b\b \b',
+      rotate: false
+    });
+  });
+
   it('does not let terminal control responses consume line start', () => {
     const interceptor = new InputInterceptor();
 

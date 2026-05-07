@@ -1,6 +1,6 @@
-import { resolveAppPaths, type AppPaths } from '../config/paths';
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { buildProfileEnv } from './profile-env';
 import { persistProfileRuntime } from './profile-runtime';
 import { getLatestSessionId, parseSessionId } from './session-tracker';
@@ -47,7 +47,7 @@ export async function runDevinPtyForAccount(
   let sessionId: string | null = null;
   const watcher = new OutputWatcher();
   const input = new InputInterceptor({
-    onDebugChunk: makeStdinDebugger(baseEnv)
+    onDebugChunk: makeStdinDebugger(baseEnv, appPaths)
   });
   const capture = new PromptCapture();
   const rotateEngine = options.rotateEngine ?? new RotateEngine(store, baseEnv);
@@ -101,7 +101,6 @@ export async function runDevinPtyForAccount(
       active = result.account;
       term = spawn(active, ['-r', sessionId]);
       try {
-        previous.write('\u0003');
         previous.kill();
       } catch {
         // The child may already be gone.
@@ -135,9 +134,12 @@ export async function runDevinPtyForAccount(
   });
 }
 
-function makeStdinDebugger(baseEnv: NodeJS.ProcessEnv): ((data: string) => void) | undefined {
+function makeStdinDebugger(baseEnv: NodeJS.ProcessEnv, appPaths: AppPaths): ((data: string) => void) | undefined {
   if (baseEnv.DSW_DEBUG_STDIN !== '1') return undefined;
-  const file = path.join(process.cwd(), 'dsw-stdin-debug.log');
+  fs.mkdirSync(appPaths.appDataDir, { recursive: true, mode: 0o700 });
+  const file = path.join(appPaths.appDataDir, 'stdin-debug.log');
+  if (!fs.existsSync(file)) fs.closeSync(fs.openSync(file, 'w', 0o600));
+  fs.chmodSync(file, 0o600);
   return (data: string) => {
     const bytes = Buffer.from(data, 'utf8');
     fs.appendFileSync(file, `${JSON.stringify(data)} ${bytes.toString('hex')}\n`);

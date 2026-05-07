@@ -19,4 +19,11 @@ describe('OutputWatcher', () => {
 
     expect(watcher.push('Something went wrong\n  An internal error occurred. Send a message to retry')).toBe('recoverable-error');
   });
+
+  it('detects recoverable output split across PTY chunks', () => {
+    const watcher = new OutputWatcher();
+
+    expect(watcher.push('Something went wrong\n')).toBeNull();
+    expect(watcher.push('  An internal error occurred. Send a message to retry')).toBe('recoverable-error');
+  });
 });

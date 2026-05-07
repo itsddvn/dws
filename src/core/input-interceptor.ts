@@ -10,6 +10,7 @@ export interface InputInterceptorOptions {
 
 export class InputInterceptor {
   private line = '';
+  private pendingLocal = '';
   private escapeMode: 'esc' | 'csi' | 'osc' | null = null;
   private oscSawEscape = false;
 
@@ -40,10 +41,15 @@ export class InputInterceptor {
       }
 
       if (char === '\r' || char === '\n') {
-        if (this.line.trim() === ':rotate') {
+        if (this.pendingLocal && this.line.trim() === ':rotate') {
           this.resetLine();
           rotate = true;
           continue;
+        }
+        if (this.pendingLocal) {
+          localEcho += eraseLocalEcho(this.pendingLocal);
+          passThrough += this.pendingLocal;
+          this.pendingLocal = '';
         }
         passThrough += char;
         this.resetLine();
@@ -51,9 +57,12 @@ export class InputInterceptor {
       }
 
       if (isBackspace(char)) {
-        const wasLocalCommandCandidate = isLocalCommandCandidate(this.line);
+        const hasPendingLocal = this.pendingLocal.length > 0;
         this.line = this.line.slice(0, -1);
-        if (wasLocalCommandCandidate) localEcho += char;
+        if (hasPendingLocal) {
+          this.pendingLocal = this.pendingLocal.slice(0, -1);
+          localEcho += char;
+        }
         else passThrough += char;
         continue;
       }
@@ -64,8 +73,17 @@ export class InputInterceptor {
       }
 
       this.line += char;
-      if (isLocalCommandCandidate(this.line)) localEcho += char;
-      else passThrough += char;
+      if (isLocalCommandCandidate(this.line)) {
+        this.pendingLocal += char;
+        localEcho += char;
+      } else {
+        if (this.pendingLocal) {
+          localEcho += eraseLocalEcho(this.pendingLocal);
+          passThrough += this.pendingLocal;
+          this.pendingLocal = '';
+        }
+        passThrough += char;
+      }
     }
 
     return { passThrough, localEcho, rotate };
@@ -73,6 +91,7 @@ export class InputInterceptor {
 
   private resetLine(): void {
     this.line = '';
+    this.pendingLocal = '';
   }
 
   private advanceEscape(char: string): void {
@@ -125,6 +144,12 @@ function isBackspace(char: string): boolean {
 }
 
 function isLocalCommandCandidate(value: string): boolean {
+  if (value.length === 0) return false;
   const trimmedStart = value.trimStart();
+  if (trimmedStart.length === 0) return true;
   return ':rotate'.startsWith(trimmedStart);
+}
+
+function eraseLocalEcho(value: string): string {
+  return '\b \b'.repeat(value.length);
 }
