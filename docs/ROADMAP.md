@@ -1,9 +1,9 @@
 # Roadmap - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.2.0, SRS v1.2.0, TECHSTACK v1.1.0, ARCHITECTURE v1.2.0, TESTCASES v1.2.0
+**Source:** PRD v1.3.0, SRS v1.3.0, TECHSTACK v1.2.0, ARCHITECTURE v1.3.0, TESTCASES v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -107,25 +107,32 @@
 - [x] `dsw doctor` prints tmux status.
 - [x] Product docs reflect quota and tmux scope.
 
-### M6 Package metadata cleanup (future)
+### M6 Package publication and cache cleanup (completed)
 
-**Window:** 2026-05-08 -> 2026-05-08.
-**Goal:** Resolve package metadata drift and prepare release confidence.
+**Window:** 2026-05-07 -> 2026-05-07.
+**Goal:** Resolve package metadata drift, publish npm-ready metadata, and document quota cache behavior.
 **Workstreams:**
-- Manifests: refresh `package-lock.json` root version from `package.json`.
-- Release: re-run verification and update docs if behavior changes.
+- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.1`.
+- Build: ship runtime-only package contents from `dist/src`.
+- Runtime: add quota cache, quota skip env var, and cache TTL env var.
+- Installer: make tmux auto-install opt-in.
+- Docs: update product docs to match release behavior.
 **Deliverables:**
-- Updated lock file if approved.
+- `package.json`, `package-lock.json`, `tsconfig.build.json`.
+- `src/core/quota-cache.ts`.
+- Updated `README.md` and `docs/*.md`.
 **Hard Exit Gate (all must pass):**
-- [ ] `package-lock.json` root package version matches `package.json` or drift is consciously accepted.
-- [ ] Full verification suite passes.
+- [x] `package-lock.json` root package version matches `package.json`.
+- [x] Package metadata exposes `dsw` through `bin`.
+- [x] `npm pack --dry-run` includes runtime files only.
+- [x] Product docs reflect npm package, quota cache, and tmux opt-in installer policy.
 
 ## 3. ASCII Timeline
 
 ```text
 2026-05-06       2026-05-07       2026-05-08       2026-05-10
 |--M0--|--M1--|--M2--|--M3--|--M4--|--M5--|--M6--|
- done    done    done    docs    quota  tmux   cleanup
+ done    done    done    docs    quota  tmux   release
 ```
 
 ## 4. Critical Path
@@ -135,38 +142,38 @@
 3. M2 runtime sharing -> unblocked M3 accurate architecture and SRS extraction.
 4. M3 docs -> unblocked M4 quota scope update.
 5. M4 quota reporting -> unblocked M5 tmux packaging and docs.
-6. M5 dependency packaging -> unblocks M6 metadata cleanup.
+6. M5 dependency packaging -> unblocked M6 package publication and cache cleanup.
 
 ## 5. Workstream Allocation
 
 | Stream | Owner | M0 | M1 | M2 | M3 | M4 | M5 | M6 |
 |--------|-------|----|----|----|----|----|----|----|
-| Product/docs | itsddvn | support | support | support | lead | support | lead | review |
-| CLI/runtime | itsddvn | lead | lead | lead | support | lead | lead | support |
+| Product/docs | itsddvn | support | support | support | lead | support | lead | lead |
+| CLI/runtime | itsddvn | lead | lead | lead | support | lead | lead | lead |
 | Tests/release | itsddvn | lead | lead | lead | lead | lead | lead | lead |
 
 ## 6. Risk vs Schedule
 
 | Risk | Likelihood | Schedule Impact | Mitigation | Owner |
 |------|------------|-----------------|------------|-------|
-| Lock-file version drift causes release confusion. | High | Low | Fix in M4 or record exception. | itsddvn |
+| npm package metadata drifts from code version. | Medium | Low | Verify `package.json`, `package-lock.json`, and `dsw --version` before release. | itsddvn |
 | Devin interactive `/usage` output changes. | Medium | Medium | Keep parser tests small and fail per account without stopping full quota scan. | itsddvn |
-| tmux install is unavailable on a target OS. | Medium | Low | Print manual install guidance and make doctor warning explicit. | itsddvn |
+| tmux install is unavailable on a target OS. | Medium | Low | Warn by default, support opt-in auto-install, and make doctor warning explicit. | itsddvn |
 | Real Devin CLI output diverges from fake shim. | Medium | Medium | Use `dsw doctor` and manual smoke test before release. | itsddvn |
 
 ## 7. Release Plan
 
 | Tag | Milestone | Date | Audience |
 |-----|-----------|------|----------|
-| 0.3.0 | Current package version | 2026-05-07 | local/internal |
-| 0.4.0 | M4/M5 account use, quota reporting, and tmux dependency handling | 2026-05-07 | local/internal |
-| 0.4.1 | M6 metadata cleanup | 2026-05-08 | local/internal |
+| 0.3.0 | Initial package baseline | 2026-05-07 | local/internal |
+| 0.4.0 | M4/M5 account use, quota reporting, and tmux dependency handling | 2026-05-07 | npm/GitHub |
+| 0.4.1 | M6 package metadata, runtime package files, and quota cache docs | 2026-05-07 | npm/GitHub |
 
 ## 8. Cadence
 
 - Per change: run typecheck, lint, tests, and build.
 - Per docs update: update change logs and traceability.
-- Before release: verify package manifest/lock metadata, command help, and fake Devin integration suite.
+- Before release: verify package manifest/lock metadata, command help/version, `npm pack --dry-run`, and fake Devin integration suite.
 
 ## 9. Glossary
 
@@ -174,7 +181,7 @@
 |------|------------|
 | Alpha | Current local/internal usable state. |
 | GA | Release state after docs and verification gates pass. |
-| Lock drift | Mismatch between `package.json` and `package-lock.json` metadata. |
+| Quota cache | Local cache of quota summaries used by default and `next` automatic selection. |
 
 ## 10. Source-of-Truth Hierarchy
 
@@ -206,3 +213,4 @@ Lower-numbered doc wins ties. Update upstream first.
 | 1.1.0 | 2026-05-07 | itsddvn | Updated roadmap for completed direct account selection, quota reporting, and tmux dependency packaging. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial roadmap extracted from git history, current code, and user decisions. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated roadmap to include quota-aware automatic selection. |
+| 1.3.0 | 2026-05-07 | itsddvn | Marked package publication, quota cache, and tmux opt-in installer docs as completed for commit `49ceed6`. |

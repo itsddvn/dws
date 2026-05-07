@@ -1,9 +1,9 @@
 # Test Cases - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** SRS v1.2.0, USECASES v1.2.0, `tests/`
+**Source:** SRS v1.3.0, USECASES v1.3.0, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -40,42 +40,48 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 
 | ID | Title | Type | Priority | Related FR/NFR/UC | Status |
 |----|-------|------|----------|-------------------|--------|
-| `TC-CLI-001` | Help lists supported commands | integration | P0 | `FR-CLI-002` | Implemented |
+| `TC-CLI-001` | Help and version list supported metadata | integration | P0 | `FR-CLI-002` | Implemented |
 | `TC-ACC-001` | Store creates, lists, updates, removes accounts | unit | P0 | `FR-ACC-001`, `FR-ACC-003`, `FR-ACC-004` | Implemented |
 | `TC-ACC-002` | CLI add-list-remove flow | integration | P0 | `FR-ACC-002`, `FR-ACC-004`, `UC-ACC-01`, `UC-ACC-02` | Implemented |
+| `TC-ACC-003` | Account name validation and slugging | unit | P1 | `FR-ACC-001`, `FR-AUTH-003`, `BR-DATA-01` | Implemented |
 | `TC-AUTH-001` | Add unnamed account infers name | integration | P1 | `FR-AUTH-003`, `UC-AUTH-02` | Implemented |
 | `TC-AUTH-002` | Login failure marks needs-login | integration | P0 | `FR-AUTH-002`, `UC-AUTH-03`, `NFR-REL-002` | Implemented |
 | `TC-RUN-001` | Quota-aware default selector behavior | unit | P0 | `FR-RUN-001`, `UC-RUN-01` | Implemented |
 | `TC-RUN-002` | Quota-aware next selector behavior | integration | P0 | `FR-RUN-002`, `UC-RUN-02` | Implemented |
 | `TC-RUN-003` | CLI forwards Devin args | integration | P0 | `FR-RUN-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
 | `TC-RUN-004` | Specific account command forwards Devin args | integration | P0 | `FR-RUN-004`, `UC-RUN-03` | Implemented |
+| `TC-RUN-005` | Quota cache persistence, TTL, bypass, and invalidation | unit | P0 | `FR-RUN-006`, `NFR-REL-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
 | `TC-PROF-001` | App path resolution | unit | P0 | `FR-PROF-004` | Implemented |
 | `TC-PROF-002` | Profile runtime symlink and config sync | unit | P0 | `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` | Implemented |
 | `TC-PROF-003` | Profile org id reader | unit | P1 | `FR-PROF-005` | Implemented |
 | `TC-OPS-001` | Update dry-run prints local checkout steps | integration | P1 | `FR-OPS-002`, `UC-OPS-02` | Implemented |
 | `TC-OPS-002` | Doctor reports paths, Devin version, and tmux version | integration | P1 | `FR-OPS-001`, `UC-OPS-01`, `NFR-OBS-001` | Implemented |
 | `TC-OPS-003` | Quota checks ready accounts and skips needs-login accounts | integration | P0 | `FR-RUN-005`, `FR-OPS-004`, `UC-OPS-04`, `NFR-COMPAT-002` | Implemented |
+| `TC-OPS-004` | Process capture helper handles output, timeout, and spawn failure | unit | P1 | `NFR-USE-001`, `NFR-OBS-001` | Implemented |
 | `TC-SEC-001` | Redaction covers auth-like secrets | unit | P0 | `NFR-SEC-002` | Implemented |
 | `TC-MAINT-001` | Typecheck, lint, test, build pass | manual | P0 | `FR-OPS-003`, `UC-OPS-03`, `NFR-MAINT-001`, `NFR-MAINT-002` | Implemented by commands |
+| `TC-MAINT-002` | npm package metadata and tarball contents are release-ready | manual | P0 | `FR-OPS-005`, `UC-OPS-03` | Implemented by commands |
+| `TC-REL-001` | Atomic JSON helper writes safely and tolerates malformed reads | unit | P0 | `NFR-REL-001` | Implemented |
 
 ## 6. Test Cases - Detail
 
 ### 6.1 CLI
 
-#### `TC-CLI-001` Help lists supported commands
+#### `TC-CLI-001` Help and version list supported metadata
 
 **Type:** integration
 **Priority:** P0
 **Related:** `FR-CLI-002`
 **Component under test:** `C-01`
 **Preconditions:** Test shim is on `PATH`.
-**Test Data:** args `["--help"]`.
+**Test Data:** args `["--help"]`, `["--version"]`.
 **Steps:**
 1. Run CLI through `tsx`.
 2. Capture stdout and exit code.
 3. Assert exit code 0 and commands are present.
-**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `next`, `use`, `quota`, `update`, and `doctor`.
-**Implementation:** `tests/integration/cli.spec.ts:58`.
+4. Run version output and compare to package version.
+**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `next`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.1`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Tracks the supported command surface.
 
 ### 6.2 ACC
@@ -111,8 +117,24 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run `dsw remove primary --yes`.
 4. Run `dsw list`.
 **Expected Result:** Account appears as ready, then empty-state appears after removal.
-**Implementation:** `tests/integration/cli.spec.ts:67`.
-**Notes:** Removal refusal is covered at `tests/integration/cli.spec.ts:100`.
+**Implementation:** `tests/integration/cli.spec.ts`.
+**Notes:** Removal refusal is covered at `tests/integration/cli.spec.ts`.
+
+#### `TC-ACC-003` Account name validation and slugging
+
+**Type:** unit
+**Priority:** P1
+**Related:** `FR-ACC-001`, `FR-AUTH-003`, `BR-DATA-01`
+**Component under test:** `C-01`, `C-02`
+**Preconditions:** None.
+**Test Data:** valid names, whitespace, invalid characters, free-form auth names.
+**Steps:**
+1. Call `validateAccountName` with accepted and rejected names.
+2. Call `slugifyAccountName` with mixed-case and punctuation inputs.
+3. Assert slug output is valid or null when no usable characters exist.
+**Expected Result:** Command-safe names are accepted; invalid names fail; auth display names become stable account slugs.
+**Implementation:** `tests/unit/account-name.spec.ts:4`.
+**Notes:** Supports named and unnamed account enrollment.
 
 ### 6.3 AUTH
 
@@ -130,7 +152,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run `dsw add` with fake email fallback.
 4. Assert local-part account is added.
 **Expected Result:** Unnamed account receives stable inferred name.
-**Implementation:** `tests/integration/cli.spec.ts:83`, `tests/integration/cli.spec.ts:94`.
+**Implementation:** `tests/integration/cli.spec.ts`, `tests/integration/cli.spec.ts`.
 **Notes:** Name uniqueness is handled by command helper.
 
 #### `TC-AUTH-002` Login failure marks needs-login
@@ -146,7 +168,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Run `dsw login x` with fake login failure.
 3. Run `dsw list`.
 **Expected Result:** Exit code is 1 and list shows account `x` as `needs login`.
-**Implementation:** `tests/integration/cli.spec.ts:153`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Protects recovery behavior.
 
 ### 6.4 RUN
@@ -180,7 +202,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Run `dsw next -p hello` with per-profile fake quota values.
 3. Capture selected account and forwarded args.
 **Expected Result:** Account with maximum remaining quota is selected and forwarded args reach Devin.
-**Implementation:** `tests/integration/cli.spec.ts:157`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** `dsw next` uses the same maximum-remaining quota policy as default execution.
 
 #### `TC-RUN-003` CLI forwards Devin args
@@ -197,7 +219,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run default command with unknown args.
 4. Run `dsw next -p hello`.
 **Expected Result:** Selected account is printed and fake Devin receives forwarded args.
-**Implementation:** `tests/integration/cli.spec.ts:107`, `tests/integration/cli.spec.ts:129`.
+**Implementation:** `tests/integration/cli.spec.ts`, `tests/integration/cli.spec.ts`.
 **Notes:** Also validates profile-env path wiring indirectly.
 
 #### `TC-RUN-004` Specific account command forwards Devin args
@@ -213,8 +235,26 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Run `dsw use two -p hello`.
 3. Inspect stdout/stderr and store metadata.
 **Expected Result:** CLI selects `two`, forwards `-p hello`, and updates `two.lastUsedAt`.
-**Implementation:** `tests/integration/cli.spec.ts:137`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Verifies direct account selection bypasses rotation.
+
+#### `TC-RUN-005` Quota cache persistence, TTL, bypass, and invalidation
+
+**Type:** unit
+**Priority:** P0
+**Related:** `FR-RUN-006`, `NFR-REL-003`, `UC-RUN-01`, `UC-RUN-02`, `BR-DATA-04`
+**Component under test:** `C-02`, `C-07`
+**Preconditions:** Sandbox app data path exists.
+**Test Data:** cached quota entries, stale/fresh timestamps, corrupt cache JSON, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`.
+**Steps:**
+1. Persist quota entries and read them back.
+2. Split accounts into fresh and stale groups by TTL.
+3. Verify TTL override and bypass env behavior.
+4. Read corrupt cache content.
+5. Invalidate one account cache entry.
+**Expected Result:** Fresh entries are reused, stale entries are rechecked, corrupt cache is ignored, and invalidation removes only the selected account.
+**Implementation:** `tests/unit/quota-cache.spec.ts:39`.
+**Notes:** Covers local quota cache policy for default and `next`.
 
 ### 6.5 PROF
 
@@ -281,7 +321,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 1. Run dry-run update.
 2. Capture stdout.
 **Expected Result:** Output contains `git pull --ff-only`, `npm install`, and `npm run build`.
-**Implementation:** `tests/integration/cli.spec.ts:138`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Does not mutate repo.
 
 #### `TC-OPS-002` Doctor reports paths, Devin version, and tmux version
@@ -296,7 +336,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 1. Run `dsw doctor`.
 2. Capture stdout and exit code.
 **Expected Result:** Output includes doctor heading, fake Devin version, and tmux version.
-**Implementation:** `tests/integration/cli.spec.ts:192`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Missing real Devin or tmux path should produce warning in real use.
 
 #### `TC-OPS-003` Quota checks ready accounts and skips needs-login accounts
@@ -313,8 +353,24 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run `dsw quota` with fake quota env values.
 4. Capture stdout and exit code.
 **Expected Result:** Ready account row contains parsed tier, used, remaining, and reset values; needs-login account is skipped with status.
-**Implementation:** `tests/integration/cli.spec.ts:153`.
+**Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Unit parser coverage lives in `tests/unit/quota.spec.ts`.
+
+#### `TC-OPS-004` Process capture helper handles output, timeout, and spawn failure
+
+**Type:** unit
+**Priority:** P1
+**Related:** `NFR-USE-001`, `NFR-OBS-001`
+**Component under test:** `C-04`, `C-07`
+**Preconditions:** Node child process APIs available.
+**Test Data:** commands that write stdout/stderr, ignore SIGTERM, and missing binary name.
+**Steps:**
+1. Run `runCapture` against a command that writes stdout and stderr.
+2. Run a timed command that ignores SIGTERM.
+3. Run a missing binary.
+**Expected Result:** Output is captured separately, timeout is marked, and missing spawn rejects.
+**Implementation:** `tests/unit/exec.spec.ts:4`.
+**Notes:** Used by auth, doctor, and quota subprocess integrations.
 
 #### `TC-SEC-001` Redaction covers auth-like secrets
 
@@ -323,11 +379,11 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Related:** `NFR-SEC-002`
 **Component under test:** `C-04` helper
 **Preconditions:** None.
-**Test Data:** JWT-like token, Devin session token, Authorization header.
+**Test Data:** JWT-like token, Devin session token, Authorization header, JSON authorization field, standalone Bearer token, API/access key fields, `windsurf_api_key`.
 **Steps:**
 1. Call `redactText` with each sensitive input.
 2. Assert original token text is absent and redaction marker is present.
-**Expected Result:** Known sensitive forms are redacted.
+**Expected Result:** Known sensitive forms are redacted without breaking quoted JSON shape.
 **Implementation:** `tests/unit/redact.spec.ts:4`.
 **Notes:** Used by auth status parser.
 
@@ -345,8 +401,43 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 3. Run `npm test`.
 4. Run `npm run build`.
 **Expected Result:** All commands exit 0.
-**Implementation:** npm scripts in `package.json:8`.
+**Implementation:** npm scripts in `package.json:27`, `package.json:33`, `package.json:34`, and `package.json:35`.
 **Notes:** Required before release.
+
+#### `TC-MAINT-002` npm package metadata and tarball contents are release-ready
+
+**Type:** manual
+**Priority:** P0
+**Related:** `FR-OPS-005`, `UC-OPS-03`, `BR-OPS-04`
+**Component under test:** `C-01`, `C-06`
+**Preconditions:** Dependencies installed.
+**Test Data:** package metadata and pack output.
+**Steps:**
+1. Verify `package.json` and `package-lock.json` root name/version match.
+2. Verify `bin.dsw` points to `bin/dsw`.
+3. Run `npm pack --dry-run`.
+4. Verify tarball file list includes runtime files only.
+5. Verify `dsw --version` matches `package.json`.
+**Expected Result:** Package is installable with `npm install -g @itsddvn/dsw` and exposes `dsw`.
+**Implementation:** npm commands plus package manifest.
+**Notes:** Blocks public npm release when metadata drifts.
+
+#### `TC-REL-001` Atomic JSON helper writes safely and tolerates malformed reads
+
+**Type:** unit
+**Priority:** P0
+**Related:** `NFR-REL-001`
+**Component under test:** `C-02`
+**Preconditions:** Sandbox filesystem.
+**Test Data:** JSON values, missing files, malformed JSON.
+**Steps:**
+1. Write JSON with `atomicWriteJsonSync`.
+2. Verify parent directory and file modes.
+3. Verify no temp file remains after success.
+4. Read missing and malformed JSON through `readJsonOrNull`.
+**Expected Result:** JSON writes are atomic-style and malformed reads return null.
+**Implementation:** `tests/unit/atomic-write.spec.ts:7`.
+**Notes:** Shared by account store and quota cache.
 
 ## 7. Non-Functional Test Cases
 
@@ -382,6 +473,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `FR-RUN-003` | `TC-RUN-003` | no |
 | `FR-RUN-004` | `TC-RUN-004` | no |
 | `FR-RUN-005` | `TC-OPS-003` | no |
+| `FR-RUN-006` | `TC-RUN-005`, `TC-OPS-003` | no |
 | `FR-PROF-001` | `TC-PROF-002`, `TC-RUN-003` | no |
 | `FR-PROF-002` | `TC-PROF-002` | no |
 | `FR-PROF-003` | `TC-PROF-002` | no |
@@ -391,22 +483,24 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `FR-OPS-002` | `TC-OPS-001` | no |
 | `FR-OPS-003` | `TC-MAINT-001` | no |
 | `FR-OPS-004` | `TC-OPS-003`, `TC-MAINT-001` | no |
+| `FR-OPS-005` | `TC-MAINT-002` | no |
 
 ### 8.2 NFR coverage
 
 | NFR ID | Covering TCs | Gap? |
 |--------|--------------|------|
 | `NFR-PERF-001` | `TC-RUN-003` | no |
-| `NFR-REL-001` | `TC-ACC-001` | no |
+| `NFR-REL-001` | `TC-ACC-001`, `TC-REL-001` | no |
 | `NFR-REL-002` | `TC-AUTH-002` | no |
+| `NFR-REL-003` | `TC-RUN-005` | no |
 | `NFR-SEC-001` | `TC-PROF-002` | no |
 | `NFR-SEC-002` | `TC-SEC-001` | no |
-| `NFR-USE-001` | `TC-ACC-002`, `TC-AUTH-002`, `TC-RUN-003` | no |
+| `NFR-USE-001` | `TC-ACC-002`, `TC-AUTH-002`, `TC-RUN-003`, `TC-OPS-004` | no |
 | `NFR-MAINT-001` | `TC-MAINT-001` | no |
 | `NFR-MAINT-002` | `TC-MAINT-001` | no |
 | `NFR-COMPAT-001` | `TC-MAINT-001` | no |
 | `NFR-COMPAT-002` | `TC-OPS-002`, `TC-OPS-003`, `TC-MAINT-001` | no |
-| `NFR-OBS-001` | `TC-OPS-002` | no |
+| `NFR-OBS-001` | `TC-OPS-002`, `TC-OPS-004` | no |
 
 ### 8.3 UC coverage
 
@@ -417,13 +511,13 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `UC-AUTH-02` | `TC-AUTH-001` | no |
 | `UC-AUTH-03` | `TC-AUTH-002` | no |
 | `UC-ACC-02` | `TC-ACC-002` | no |
-| `UC-RUN-01` | `TC-RUN-001`, `TC-RUN-003` | no |
-| `UC-RUN-02` | `TC-RUN-002`, `TC-RUN-003` | no |
+| `UC-RUN-01` | `TC-RUN-001`, `TC-RUN-003`, `TC-RUN-005` | no |
+| `UC-RUN-02` | `TC-RUN-002`, `TC-RUN-003`, `TC-RUN-005` | no |
 | `UC-RUN-03` | `TC-RUN-004` | no |
-| `UC-OPS-04` | `TC-OPS-003` | no |
+| `UC-OPS-04` | `TC-OPS-003`, `TC-RUN-005` | no |
 | `UC-OPS-01` | `TC-OPS-002` | no |
 | `UC-OPS-02` | `TC-OPS-001` | no |
-| `UC-OPS-03` | `TC-MAINT-001` | no |
+| `UC-OPS-03` | `TC-MAINT-001`, `TC-MAINT-002` | no |
 
 ## 9. Execution & Reporting
 
@@ -443,20 +537,25 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `TC-CLI-001` | `FR-CLI-002` | none | none | `BR-OPS-01` |
 | `TC-ACC-001` | `FR-ACC-001`, `FR-ACC-003`, `FR-ACC-004` | `NFR-REL-001` | none | `BR-DATA-01`, `BR-DATA-02` |
 | `TC-ACC-002` | `FR-ACC-002`, `FR-ACC-004` | `NFR-USE-001` | `UC-ACC-01`, `UC-ACC-02` | `BR-OPS-01`, `BR-DATA-02` |
+| `TC-ACC-003` | `FR-ACC-001`, `FR-AUTH-003` | none | `UC-AUTH-01`, `UC-AUTH-02` | `BR-DATA-01` |
 | `TC-AUTH-001` | `FR-AUTH-003` | none | `UC-AUTH-02` | `BR-DATA-01` |
 | `TC-AUTH-002` | `FR-AUTH-002` | `NFR-REL-002` | `UC-AUTH-03` | `BR-AUTH-01` |
 | `TC-RUN-001` | `FR-RUN-001` | none | `UC-RUN-01` | `BR-AUTH-01` |
 | `TC-RUN-002` | `FR-RUN-002` | none | `UC-RUN-02` | `BR-AUTH-01` |
 | `TC-RUN-003` | `FR-RUN-003`, `FR-CLI-001` | `NFR-PERF-001`, `NFR-USE-001` | `UC-RUN-01`, `UC-RUN-02` | `BR-OPS-01` |
 | `TC-RUN-004` | `FR-RUN-004`, `FR-RUN-003` | `NFR-USE-001` | `UC-RUN-03` | `BR-AUTH-01`, `BR-OPS-01` |
+| `TC-RUN-005` | `FR-RUN-006` | `NFR-REL-003` | `UC-RUN-01`, `UC-RUN-02`, `UC-OPS-04` | `BR-DATA-04` |
 | `TC-PROF-001` | `FR-PROF-004` | none | none | `BR-DATA-01` |
 | `TC-PROF-002` | `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` | `NFR-SEC-001` | `UC-RUN-01` | `BR-SEC-01`, `BR-SEC-02`, `BR-DATA-03` |
 | `TC-PROF-003` | `FR-PROF-005` | none | none | `BR-SEC-02` |
 | `TC-OPS-001` | `FR-OPS-002` | none | `UC-OPS-02` | `BR-OPS-01` |
 | `TC-OPS-002` | `FR-OPS-001` | `NFR-OBS-001` | `UC-OPS-01` | `BR-OPS-01` |
 | `TC-OPS-003` | `FR-RUN-005`, `FR-OPS-004` | `NFR-COMPAT-002` | `UC-OPS-04` | `BR-AUTH-01`, `BR-OPS-03` |
+| `TC-OPS-004` | none | `NFR-USE-001`, `NFR-OBS-001` | none | `BR-OPS-01` |
 | `TC-SEC-001` | none | `NFR-SEC-002` | none | `BR-SEC-02` |
 | `TC-MAINT-001` | `FR-OPS-003` | `NFR-MAINT-001`, `NFR-MAINT-002`, `NFR-COMPAT-001` | `UC-OPS-03` | `BR-OPS-02` |
+| `TC-MAINT-002` | `FR-OPS-005` | `NFR-MAINT-001` | `UC-OPS-03` | `BR-OPS-04` |
+| `TC-REL-001` | none | `NFR-REL-001` | none | `BR-DATA-01`, `BR-DATA-04` |
 
 ### TC -> Component
 
@@ -465,20 +564,25 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `TC-CLI-001` | `C-01` |
 | `TC-ACC-001` | `C-02` |
 | `TC-ACC-002` | `C-01`, `C-02`, `C-03`, `C-04` |
+| `TC-ACC-003` | `C-01`, `C-02` |
 | `TC-AUTH-001` | `C-01`, `C-02`, `C-04` |
 | `TC-AUTH-002` | `C-01`, `C-02`, `C-04` |
 | `TC-RUN-001` | `C-04` |
 | `TC-RUN-002` | `C-04` |
 | `TC-RUN-003` | `C-01`, `C-04`, `C-05` |
 | `TC-RUN-004` | `C-01`, `C-04`, `C-05` |
+| `TC-RUN-005` | `C-02`, `C-07` |
 | `TC-PROF-001` | `C-03` |
 | `TC-PROF-002` | `C-05` |
 | `TC-PROF-003` | `C-05` |
 | `TC-OPS-001` | `C-01` |
 | `TC-OPS-002` | `C-01`, `C-04`, `C-07` |
 | `TC-OPS-003` | `C-01`, `C-02`, `C-07` |
+| `TC-OPS-004` | `C-04`, `C-07` |
 | `TC-SEC-001` | `C-04` |
 | `TC-MAINT-001` | `C-06` |
+| `TC-MAINT-002` | `C-01`, `C-06` |
+| `TC-REL-001` | `C-02` |
 
 ## Change Log
 
@@ -487,3 +591,4 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account, quota reporting, tmux diagnostics, and quota parser coverage. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial test-case catalog extracted from Vitest suite. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection unit and integration coverage. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, helper utility, atomic write, exec, and expanded redaction coverage. |

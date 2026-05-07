@@ -1,9 +1,9 @@
 # External Documents & Resources - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** TECHSTACK v1.1.0, ARCHITECTURE v1.1.0
+**Source:** TECHSTACK v1.2.0, ARCHITECTURE v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -160,7 +160,7 @@ This registry lists external documents, APIs, specifications, and resources that
 | **Why We Depend** | `dsw quota` uses detached tmux sessions to drive Devin's interactive `/usage` command under each profile environment. |
 | **Cross-refs** | `TS-INFRA-11`, `C-07`, `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002` |
 | **Auth / Access** | Public |
-| **Notes / Gotchas** | Installation is OS-managed; `postinstall` is best-effort and `dsw doctor` remains the diagnostic source. |
+| **Notes / Gotchas** | Installation is OS-managed; `postinstall` warns by default, auto-installs only with `DSW_INSTALL_TMUX=1`, and `dsw doctor` remains the diagnostic source. |
 
 ### 3.4 Services and Package Resources (`EXT-SVC`)
 
@@ -173,10 +173,10 @@ This registry lists external documents, APIs, specifications, and resources that
 | **Version / Revision** | npm CLI docs current as of 2026-05-07 |
 | **Last Verified** | 2026-05-07 |
 | **Type** | SVC |
-| **Why We Depend** | `dsw update` can run `npm install` or `npm install -g <package>@latest`; npm installs dependencies. |
-| **Cross-refs** | `TS-BUILD-04`, `C-01`, `FR-OPS-002`, `FR-OPS-003` |
-| **Auth / Access** | Public; user npm auth may apply for private packages. |
-| **Notes / Gotchas** | Current package is marked private, so non-git update path refuses global update. |
+| **Why We Depend** | `dsw update` can run `npm install` or `npm install -g <package>@latest`; npm installs dependencies; public distribution uses `@itsddvn/dsw`. |
+| **Cross-refs** | `TS-BUILD-04`, `TS-PKG-12`, `C-01`, `FR-OPS-002`, `FR-OPS-003`, `FR-OPS-005` |
+| **Auth / Access** | Public package install; npm auth is required only for publishing. |
+| **Notes / Gotchas** | Scoped public packages require public access config on publish; package install resolves the `dsw` binary from `bin/dsw`. |
 
 #### `EXT-SVC-002` - Git
 
@@ -222,7 +222,7 @@ This registry lists external documents, APIs, specifications, and resources that
 | `EXT-STD-001` | `TS-RT-02`, `C-01`, `C-02`, `C-03`, `C-04`, `C-05`, `NFR-COMPAT-001` |
 | `EXT-STD-002` | `TS-SEC-09`, `C-03`, `C-04`, `FR-PROF-001`, `BR-SEC-01` |
 | `EXT-STD-003` | `TS-INFRA-11`, `C-07`, `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002` |
-| `EXT-SVC-001` | `TS-BUILD-04`, `C-01`, `FR-OPS-002`, `FR-OPS-003` |
+| `EXT-SVC-001` | `TS-BUILD-04`, `TS-PKG-12`, `C-01`, `FR-OPS-002`, `FR-OPS-003`, `FR-OPS-005` |
 | `EXT-SVC-002` | `C-01`, `FR-OPS-002`, `UC-OPS-02` |
 
 ## Change Log
@@ -231,3 +231,4 @@ This registry lists external documents, APIs, specifications, and resources that
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added interactive Devin usage and tmux dependency references for quota reporting. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial external-resource registry for CLI dependencies. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated npm package and tmux opt-in installer references for public scoped distribution. |

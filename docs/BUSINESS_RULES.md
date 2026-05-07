@@ -1,9 +1,9 @@
 # Business Rules - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.2.0
+**Source:** PRD v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -47,6 +47,14 @@ Business rules define durable product policy for local account switching, creden
 **Violation Behavior:** Tests fail; release must not proceed.
 **Related:** `FR-PROF-003`, `NFR-SEC-002`, PRD section 4.5.
 
+### BR-SEC-03 Sensitive Output Redaction
+
+**Statement:** System SHALL redact JWT-like strings, Devin session tokens, authorization fields, API/access keys, `windsurf_api_key`, and standalone Bearer tokens before displaying captured raw auth or quota output.
+**Rationale:** Captured external CLI output can include credentials or API tokens.
+**Enforcement Point:** `redactText` is used by auth status and quota parsing paths.
+**Violation Behavior:** Redaction tests fail; release must not proceed.
+**Related:** `NFR-SEC-002`, PRD section 6.
+
 ### BR-DATA-01 Account Name Uniqueness
 
 **Statement:** Account names MUST be non-empty, unique, and contain only letters, numbers, underscores, and dashes.
@@ -71,6 +79,14 @@ Business rules define durable product policy for local account switching, creden
 **Violation Behavior:** Profile runtime tests fail.
 **Related:** `FR-PROF-002`, `FR-PROF-003`, PRD section 4.5.
 
+### BR-DATA-04 Quota Cache Freshness
+
+**Statement:** Automatic selection MAY reuse fresh cached quota entries but MUST invalidate the selected account cache entry after a Devin run starts.
+**Rationale:** Cached quota avoids slow tmux checks while invalidation prevents immediately reusing quota that may have been consumed.
+**Enforcement Point:** `mergeAccountQuotaWithCache`, `writeQuotaCache`, and `invalidateQuotaCacheEntry`.
+**Violation Behavior:** Stale quota may cause poor account selection; quota-cache tests or review should catch regressions.
+**Related:** `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-006`, PRD section 4.4.
+
 ### BR-OPS-01 User-Recoverable Errors
 
 **Statement:** Operator-facing errors SHOULD name the command that resolves the condition when a known recovery exists.
@@ -89,11 +105,19 @@ Business rules define durable product policy for local account switching, creden
 
 ### BR-OPS-03 Quota Automation Dependency
 
-**Statement:** System SHALL surface tmux availability before quota checks are needed and SHALL clean up quota tmux sessions after use.
+**Statement:** System SHALL surface tmux availability before quota checks are needed, SHALL clean up quota tmux sessions after use, and MUST NOT auto-install tmux during npm install unless `DSW_INSTALL_TMUX=1`.
 **Rationale:** Quota reporting depends on interactive terminal automation and must not leave stale sessions behind.
-**Enforcement Point:** `scripts/ensure-tmux.js`, `dsw doctor`, and `checkAccountQuota` session cleanup.
+**Enforcement Point:** `scripts/ensure-tmux.js`, `dsw doctor`, and quota session cleanup.
 **Violation Behavior:** Missing tmux is reported by install/doctor; quota account failures are shown in the quota table.
 **Related:** `FR-RUN-005`, `FR-OPS-001`, `FR-OPS-004`, `NFR-COMPAT-002`, PRD section 4.1.
+
+### BR-OPS-04 Release Package Integrity
+
+**Statement:** Public npm releases MUST keep package version, lock-file root version, binary mapping, and runtime package file list aligned.
+**Rationale:** Global installs and `dsw update` rely on npm metadata matching the built CLI.
+**Enforcement Point:** Release checklist, `package.json`, `package-lock.json`, `npm pack --dry-run`.
+**Violation Behavior:** Release remains Draft/Review until metadata and package contents are corrected.
+**Related:** `FR-OPS-002`, `FR-OPS-003`, `FR-OPS-005`, PRD section 4.6.
 
 ## 4. Conflict Resolution
 
@@ -101,6 +125,7 @@ Business rules define durable product policy for local account switching, creden
 |--------|--------|--------|--------|
 | `BR-SEC-01` | `BR-DATA-03` | `BR-SEC-01` | Credential isolation outranks config convenience. |
 | `BR-DATA-02` | `BR-OPS-01` | `BR-DATA-02` | Data deletion must stay explicit even if shorter UX is possible. |
+| `BR-DATA-04` | `BR-AUTH-01` | `BR-AUTH-01` | A cached quota entry cannot make a needs-login account eligible. |
 
 ## 5. Traceability - SRS to BR
 
@@ -111,17 +136,20 @@ Business rules define durable product policy for local account switching, creden
 | `FR-AUTH-001` | `BR-SEC-01` |
 | `FR-RUN-001` | `BR-AUTH-01` |
 | `FR-RUN-002` | `BR-AUTH-01` |
+| `FR-RUN-006` | `BR-DATA-04` |
 | `FR-RUN-004` | `BR-AUTH-01`, `BR-OPS-01` |
 | `FR-RUN-005` | `BR-AUTH-01`, `BR-OPS-03` |
 | `FR-PROF-001` | `BR-SEC-01` |
 | `FR-PROF-002` | `BR-DATA-03` |
 | `FR-PROF-003` | `BR-SEC-02`, `BR-DATA-03` |
 | `FR-OPS-004` | `BR-OPS-03` |
+| `FR-OPS-005` | `BR-OPS-04` |
 | `NFR-SEC-001` | `BR-SEC-01` |
-| `NFR-SEC-002` | `BR-SEC-02` |
+| `NFR-SEC-002` | `BR-SEC-02`, `BR-SEC-03` |
 | `NFR-USE-001` | `BR-OPS-01` |
 | `NFR-MAINT-001` | `BR-OPS-02` |
 | `NFR-COMPAT-002` | `BR-OPS-03` |
+| `NFR-REL-003` | `BR-DATA-04` |
 
 ## Change Log
 
@@ -130,3 +158,4 @@ Business rules define durable product policy for local account switching, creden
 | 1.1.0 | 2026-05-07 | itsddvn | Added quota automation and tmux dependency operating rules. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial business rules extraction from current behavior. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run eligibility to include quota availability. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache freshness, redaction scope, tmux opt-in install, and package integrity rules. |

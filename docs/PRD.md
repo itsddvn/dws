@@ -1,9 +1,9 @@
 # Product Requirements Document - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** Extracted from commit `3c08cdc`, updated from working tree changes on 2026-05-07, `README.md`, `package.json`, `src/`, `tests/`
+**Source:** Extracted from commit `3c08cdc`, updated through commit `49ceed6`, `README.md`, `package.json`, `package-lock.json`, `src/`, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -18,12 +18,14 @@
 - Run the Devin CLI under the selected account profile.
 - Select accounts by quota-aware default execution, using least-recently-used only as a tie-breaker.
 - Select accounts by maximum remaining quota for both default `dsw` and explicit `dsw next`.
+- Cache quota results for automatic selection and allow operators to bypass quota checks when needed.
 - Select a specific account by name for explicit `dsw use <name>`.
 - Check managed account quota by driving Devin's interactive `/usage` command through tmux.
 - Isolate credentials with per-profile `XDG_DATA_HOME` and `XDG_CONFIG_HOME`.
 - Share non-auth Devin CLI state across profiles.
 - Sync non-auth Devin config between shared and profile config files.
 - Update a local git checkout or npm-installed package from `dsw update`.
+- Distribute the CLI as the public npm package `@itsddvn/dsw`, exposing the `dsw` binary.
 
 ### 1.3 Scope (out)
 - Quota-aware automatic selection is in scope for default `dsw` and `dsw next`; predictive quota forecasting remains out of scope.
@@ -40,6 +42,7 @@
 | Ready account | Account with `needsLogin = false`. |
 | LRU | Least-recently-used selection based on `lastUsedAt`. |
 | Shared CLI state | The normal Devin `devin/cli` state linked into each profile. |
+| Quota cache | Local cache file `~/.dsw/quota-cache.json` used to avoid repeated slow quota reads during automatic selection. |
 
 ## 2. Personas
 
@@ -50,13 +53,13 @@
 
 ## 3. Baseline
 
-The current implementation is a TypeScript Node.js CLI with a `dsw` binary. The README documents install, commands, profile isolation, environment variables, and development commands. Source: `README.md:1`.
+The current implementation is a TypeScript Node.js CLI distributed as the public npm package `@itsddvn/dsw` with a `dsw` binary. The README documents npm install, GitHub checkout install, commands, profile isolation, environment variables, quota caching, and development commands. Source: `README.md:1`, `package.json:2`, `package.json:13`.
 
 The CLI entry point registers `list`, `ls`, `add`, `remove`, `rm`, `login`, `next`, `use`, `quota`, `update`, and `doctor`; unknown top-level args are passed to default execution. Source: `src/cli/index.ts:12`.
 
-The account index is a local JSON file at `~/.dsw/accounts.json` by default, configurable through `DSW_DATA_HOME` and `DSW_CONFIG_HOME`. Source: `README.md:63`, `src/config/paths.ts:24`, `src/core/store.ts:18`.
+The account index is a local JSON file at `~/.dsw/accounts.json` by default, configurable through `DSW_DATA_HOME` and `DSW_CONFIG_HOME`. Automatic quota selection also writes `~/.dsw/quota-cache.json`. Source: `README.md:89`, `README.md:122`, `src/config/paths.ts:24`, `src/core/store.ts:18`, `src/core/quota-cache.ts:8`.
 
-Integration tests use `scripts/fake-devin.ts` and do not touch real credentials. Source: `README.md:82`, `tests/integration/cli.spec.ts:21`.
+Integration tests use `scripts/fake-devin.ts` and do not touch real credentials. Source: `README.md:82`, `tests/integration/cli.spec.ts`.
 
 ## 4. Features
 
@@ -76,7 +79,7 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 - If no name is supplied, infer name from auth status name or email local-part.
 - `dsw login <name>` re-runs login for an existing account.
 - Failed login leaves explicit named accounts recoverable and rolls back unnamed adds.
-**Acceptance bar:** Integration tests cover add/list/remove, inferred names, fallback names, and login failure. Source: `tests/integration/cli.spec.ts:67`, `tests/integration/cli.spec.ts:83`, `tests/integration/cli.spec.ts:153`.
+**Acceptance bar:** Integration tests cover add/list/remove, inferred names, fallback names, and login failure. Source: `tests/integration/cli.spec.ts`, `tests/integration/cli.spec.ts`, `tests/integration/cli.spec.ts`.
 
 ### F3. Account Removal
 **Goal:** Remove stale account metadata and on-disk profile credentials.
@@ -92,10 +95,11 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 **Requirements summary:**
 - Default `dsw [args...]` checks quota first, picks the ready account with the highest known remaining quota, then uses least-recently-used as the tie-breaker.
 - `dsw next [args...]` checks quota first and picks the ready account with the highest known remaining quota, matching default execution.
+- Cached quota results within `DSW_QUOTA_CACHE_TTL_MS` are reused for automatic selection; `DSW_SKIP_QUOTA=1` bypasses quota checks and falls back to least-recently-used selection.
 - `dsw use <name> [args...]` runs Devin under a specific ready account.
 - All unknown args are forwarded to `devin`.
 - Accounts marked `needsLogin` are skipped.
-**Acceptance bar:** Unit and integration tests verify quota-aware default and next selection, explicit account use, skipped login accounts, exhausted accounts, and forwarded args. Source: `src/core/runner.ts:35`, `src/cli/commands/use.ts:1`, `tests/unit/runner-pick.spec.ts:20`, `tests/integration/cli.spec.ts:107`.
+**Acceptance bar:** Unit and integration tests verify quota-aware default and next selection, quota cache behavior, explicit account use, skipped login accounts, exhausted accounts, and forwarded args. Source: `src/core/runner.ts:35`, `src/core/quota-cache.ts:1`, `src/cli/commands/use.ts:1`, `tests/unit/runner-pick.spec.ts:20`, `tests/unit/quota-cache.spec.ts:39`, `tests/integration/cli.spec.ts`.
 
 ### F4.1 Quota Reporting
 **Goal:** Show quota state across all managed accounts.
@@ -105,7 +109,8 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 - The command runs Devin interactively in short-lived tmux sessions so `/usage` uses each profile credential.
 - Output includes status, tier, used percentage, remaining percentage, reset duration, and reset time where available.
 - Per-account failures are reported without blocking the whole scan.
-**Acceptance bar:** Integration tests cover quota parsing, skipped login accounts, and fake interactive `/usage`; manual smoke test verified real tmux-backed output. Source: `src/core/quota.ts:1`, `src/cli/commands/quota.ts:1`, `tests/integration/cli.spec.ts:153`.
+- Successful and exhausted quota reads refresh the quota cache for later automatic selection.
+**Acceptance bar:** Integration tests cover quota parsing, skipped login accounts, and fake interactive `/usage`; manual smoke test verified real tmux-backed output. Source: `src/core/quota.ts:1`, `src/cli/commands/quota.ts:1`, `tests/integration/cli.spec.ts`.
 
 ### F5. Profile Isolation and Shared Runtime
 **Goal:** Keep credentials isolated while sharing non-auth Devin runtime state.
@@ -121,10 +126,12 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 **Goal:** Keep the tool updateable and diagnosable from the CLI.
 **Why:** Operators need to verify local paths and update either git-linked or npm-installed copies.
 **Requirements summary:**
+- Public npm package `@itsddvn/dsw` exposes `dsw` through package `bin`.
+- Published package includes `bin`, `dist/src`, `scripts/ensure-tmux.js`, `README.md`, and `package.json`.
 - `dsw update` runs git/npm/build steps for local checkouts, or global npm install for package installs.
 - `dsw doctor` prints app paths, profile paths, account count, Devin CLI detection, and tmux detection.
-- `npm install` runs a best-effort tmux dependency check/install script.
-**Acceptance bar:** Integration tests cover update dry-run and doctor output. Source: `scripts/ensure-tmux.js:1`, `tests/integration/cli.spec.ts:190`.
+- `npm install` runs a best-effort tmux dependency check; automatic install is opt-in with `DSW_INSTALL_TMUX=1`, and `DSW_SKIP_TMUX_INSTALL=1` suppresses warning output.
+**Acceptance bar:** Integration tests cover update dry-run and doctor output; package metadata exposes `dsw`; npm pack emits runtime files only. Source: `package.json:2`, `package.json:13`, `package.json:16`, `scripts/ensure-tmux.js:1`, `tests/integration/cli.spec.ts`.
 
 ## 5. Solution Context
 
@@ -133,6 +140,7 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 |--------|-------------|
 | Account | Local JSON account record with identity, auth metadata, readiness, and timestamps. |
 | Account store | JSON file containing `version` and `accounts`. |
+| Quota cache | JSON file containing cached quota summaries keyed by account id. |
 | Profile | Per-account directory tree containing isolated Devin data/config homes. |
 | Shared Devin state | User-level Devin CLI state symlinked into each profile. |
 | Shared Devin config | User-level `devin/config.json` used as non-auth setting source. |
@@ -142,7 +150,7 @@ Not applicable. This is a CLI tool with terminal commands, not a graphical UI.
 
 ## 6. Non-Functional Requirements (summary)
 - Security: credentials MUST remain per-profile and auth-like output MUST be redacted before stored or displayed by parsing helpers.
-- Reliability: account store writes SHOULD use temporary-file rename to avoid partial JSON writes.
+- Reliability: account store and quota cache writes SHOULD use temporary-file rename to avoid partial JSON writes.
 - Compatibility: the CLI requires Node.js 20+, the `devin` binary on `PATH`, and `tmux` for quota reporting.
 - Maintainability: typecheck, lint, test, and build commands SHOULD pass before release.
 - Usability: operator-facing errors MUST name the corrective command where practical.
@@ -156,6 +164,7 @@ Not applicable. This is a CLI tool with terminal commands, not a graphical UI.
 | M2 | Runtime sharing | Completed | Shared CLI state and config sync tests pass. |
 | M3 | Documentation extraction | 1 day | Product docs exist under `docs/` and pass basic verification. |
 | M4 | Direct selection and quota reporting | Completed | `dsw use`, `dsw quota`, tmux dependency, tests, and docs exist. |
+| M5 | Package publication and quota cache | Completed | Public npm metadata, runtime package files, quota cache, and installer policy exist. |
 
 ## 8. Risks
 
@@ -164,8 +173,8 @@ Not applicable. This is a CLI tool with terminal commands, not a graphical UI.
 | Devin CLI output changes break auth-status parsing. | Medium | Accounts may not be named or marked ready. | Keep parser small, tested, and fail with retry guidance. |
 | Symlink behavior differs across platforms. | Medium | Shared state may not link correctly. | Keep path logic isolated and test filesystem behavior. |
 | Store has no lock across concurrent `dsw` runs. | Medium | Concurrent writes could lose metadata. | Document single-operator assumption; consider lock file later. |
-| `package-lock.json` root version is stale against `package.json`. | High | Tooling may report inconsistent package version. | Follow `package.json` as requested; refresh lock file in a maintenance change. |
-| tmux missing or unavailable. | Medium | `dsw quota` cannot drive interactive Devin `/usage`. | `postinstall` checks/installs tmux where possible; `doctor` reports missing tmux. |
+| npm publication metadata drifts from built package. | Medium | Global installs or `dsw update` may install the wrong binary or files. | Verify `package.json`, `package-lock.json`, `npm pack --dry-run`, and `dsw --version` before release. |
+| tmux missing or unavailable. | Medium | `dsw quota` cannot drive interactive Devin `/usage`. | `postinstall` warns by default, opt-in install is available, and `doctor` reports missing tmux. |
 
 ## 9. Open Questions
 
@@ -200,10 +209,12 @@ Project archetype: **CLI Tool**
 | 2 | Should the JSON account store create DATABASE.md? | Skip DATABASE.md and document the JSON store in PRD/SRS/ARCHITECTURE. | 2026-05-07 | User said to ignore database docs because it is working as JSON. |
 | 3 | Should Devin CLI be in EXTERNAL_DOCS? | Include Devin CLI as an external dependency. | 2026-05-07 | User confirmed. |
 | 4 | Who owns the docs? | `itsddvn`. | 2026-05-07 | User provided owner. |
-| 5 | Which project version source wins? | Follow `package.json` version `0.3.0`. | 2026-05-07 | User confirmed package.json is canonical. |
+| 5 | Which project version source wins? | Follow `package.json` version `0.4.1`. | 2026-05-07 | `package.json` and lock-file root metadata now match. |
 | 6 | How should a specific account be selected? | Add `dsw use <name> [args...]` to bypass rotation while preserving profile isolation. | 2026-05-07 | User requested direct account selection. |
-| 7 | How should tmux be provided? | Treat tmux as a quota dependency and run a best-effort installer in `postinstall`. | 2026-05-07 | User requested automatic dependency install. |
+| 7 | How should tmux be provided? | Treat tmux as a quota dependency; warn during `postinstall` by default and auto-install only when `DSW_INSTALL_TMUX=1`. | 2026-05-07 | Prevents surprising install-time `sudo` while keeping opt-in automation. |
 | 8 | How should `dsw` and `dsw next` avoid exhausted accounts? | Check all ready accounts before selection and pick the account with maximum remaining quota. | 2026-05-07 | User requested quota-first maximum-remaining selection before running credentials. |
+| 9 | How should repeated quota checks be managed? | Cache quota summaries in `~/.dsw/quota-cache.json`, respect `DSW_QUOTA_CACHE_TTL_MS`, and invalidate the selected account after a run. | 2026-05-07 | Avoids slow tmux quota checks on every automatic invocation while preserving freshness after use. |
+| 10 | How is the CLI distributed? | Publish as public npm package `@itsddvn/dsw` with `dsw` binary and runtime-only package files. | 2026-05-07 | Enables `npm install -g @itsddvn/dsw` and npm-backed `dsw update`. |
 
 ## Change Log
 
@@ -212,3 +223,4 @@ Project archetype: **CLI Tool**
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield extraction from commit `3c08cdc`. |
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, tmux-backed quota reporting, tmux install dependency handling, and doctor tmux validation. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection for default and next execution. |
+| 1.3.0 | 2026-05-07 | itsddvn | Aligned package publication, quota cache, tmux opt-in installer, and release metadata with commit `49ceed6`. |

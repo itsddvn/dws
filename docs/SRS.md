@@ -1,9 +1,9 @@
 # Software Requirements Specification - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.2.0, BusinessRules v1.2.0, ARCHITECTURE v1.2.0
+**Source:** PRD v1.3.0, BusinessRules v1.3.0, ARCHITECTURE v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -20,9 +20,9 @@ Scope mirrors PRD section 1.2: local account management, profile isolation, Devi
 See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI state definitions.
 
 ### 1.4 References
-- PRD v1.2.0
-- BusinessRules v1.2.0
-- ARCHITECTURE v1.2.0
+- PRD v1.3.0
+- BusinessRules v1.3.0
+- ARCHITECTURE v1.3.0
 
 ## 2. Overall Description
 
@@ -44,7 +44,7 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 - Single local operator model.
 - No server, database engine, or API surface.
 - Credentials are managed by the Devin CLI, not by `dsw`.
-- `package.json` version is canonical over the stale lock-file root package version.
+- `package.json` and the lock-file root package metadata are expected to match before release.
 
 ### 2.5 Assumptions
 - Devin CLI respects XDG data/config environment variables.
@@ -67,7 +67,7 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Statement:** System SHALL expose CLI help and version metadata for the `dsw` command.
 **Input:** `--help`, `-h`, `--version`, or `-V`.
 **Output:** Help text or version output.
-**Acceptance:** Help integration test passes and includes all PRD commands.
+**Acceptance:** Help integration test passes and includes all PRD commands; release verification checks CLI version output against `package.json`.
 **Components:** `C-01`.
 **Related BR:** `BR-OPS-01`.
 
@@ -173,6 +173,14 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Components:** `C-01`, `C-02`, `C-04`, `C-07`.
 **Related BR:** `BR-AUTH-01`, `BR-OPS-01`.
 
+#### FR-RUN-006 Quota Cache
+**Statement:** System SHALL cache quota summaries for automatic default and `next` selection, respect `DSW_QUOTA_CACHE_TTL_MS`, bypass quota checks when `DSW_SKIP_QUOTA=1`, refresh cache entries from `dsw quota`, and invalidate the selected account cache entry after a Devin run starts.
+**Input:** Account list, quota cache file, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`.
+**Output:** Fresh cached quota results, stale accounts to re-check, or LRU fallback when bypassed.
+**Acceptance:** Quota cache unit tests cover persistence, freshness, TTL expiry, bypass behavior, corrupt cache tolerance, and entry invalidation.
+**Components:** `C-02`, `C-07`.
+**Related BR:** `BR-DATA-04`.
+
 ### 3.5 Profiles (`FR-PROF-*`)
 
 #### FR-PROF-001 Profile Env Isolation
@@ -243,11 +251,19 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 
 #### FR-OPS-004 tmux Install Check
 **Statement:** System SHALL run a best-effort tmux dependency checker during npm install.
-**Input:** `npm install`, local PATH, platform package manager availability, and `DSW_SKIP_TMUX_INSTALL`.
-**Output:** tmux version confirmation, automatic install attempt, or manual install guidance.
+**Input:** `npm install`, local PATH, platform package manager availability, `DSW_INSTALL_TMUX`, and `DSW_SKIP_TMUX_INSTALL`.
+**Output:** tmux version confirmation, warning/manual install guidance, or opt-in automatic install attempt.
 **Acceptance:** `node scripts/ensure-tmux.js` exits 0 and reports tmux on a machine with tmux installed.
 **Components:** `C-06`, `C-07`.
 **Related BR:** `BR-OPS-01`, `BR-OPS-02`.
+
+#### FR-OPS-005 Package Publication
+**Statement:** System SHALL publish as `@itsddvn/dsw`, expose `dsw` through package `bin`, build from `tsconfig.build.json`, and include only runtime package files in npm pack output.
+**Input:** `package.json`, `package-lock.json`, `tsconfig.build.json`, `npm pack --dry-run`.
+**Output:** Installable npm package with `bin/dsw` resolving to `dist/src/cli/index.js`.
+**Acceptance:** Package and lock root metadata match, package file list is runtime-only, and global install exposes `dsw`.
+**Components:** `C-01`, `C-06`.
+**Related BR:** `BR-OPS-04`.
 
 ## 4. Non-Functional Requirements
 
@@ -259,10 +275,13 @@ System SHOULD complete account selection and child process spawn without intenti
 ### 4.2 Reliability (`NFR-REL-*`)
 
 #### NFR-REL-001 Atomic Store Writes
-System SHALL write account store updates through a temporary file followed by rename. Acceptance: `AccountStore.save` writes `.tmp` and renames it.
+System SHALL write account store and quota cache updates through a temporary file followed by rename. Acceptance: atomic-write unit tests pass and `AccountStore` / quota cache use `atomicWriteJsonSync`.
 
 #### NFR-REL-002 Recoverable Login Failure
 System SHALL leave explicit-name login failures recoverable through `dsw login <name>`. Acceptance: integration test marks failed login account as needs-login.
+
+#### NFR-REL-003 Corrupt Cache Tolerance
+System SHALL ignore a missing or malformed quota cache file without preventing account selection. Acceptance: quota-cache unit test for corrupt cache passes.
 
 ### 4.3 Security (`NFR-SEC-*`)
 
@@ -270,7 +289,7 @@ System SHALL leave explicit-name login failures recoverable through `dsw login <
 System SHALL create profile data/config directories with restrictive permissions where supported. Acceptance: directory creation uses mode `0o700`; credential writes in tests use `0o600`.
 
 #### NFR-SEC-002 Sensitive Output Redaction
-System SHALL redact JWT-like strings, Devin session tokens, authorization headers, and known API key fields in captured auth text. Acceptance: redaction unit tests pass.
+System SHALL redact JWT-like strings, Devin session tokens, authorization fields, API/access keys, `windsurf_api_key`, and standalone Bearer tokens in captured external CLI output. Acceptance: redaction unit tests pass.
 
 ### 4.4 Usability (`NFR-USE-*`)
 
@@ -313,9 +332,10 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 |-----|--------|--------|
 | CLI behavior | All integration tests pass. | `tests/integration/cli.spec.ts` |
 | Core logic | All unit tests pass. | `tests/unit/*.spec.ts` |
-| Type safety | `npm run typecheck` exits 0. | `package.json:9` |
-| Lint | `npm run lint` exits 0. | `package.json:10` |
-| Build | `npm run build` emits `dist`. | `package.json:8` |
+| Type safety | `npm run typecheck` exits 0. | `package.json:33` |
+| Lint | `npm run lint` exits 0. | `package.json:34` |
+| Build | `npm run build` emits runtime `dist/src`. | `package.json:27`, `tsconfig.build.json:1` |
+| Package | `npm pack --dry-run` includes runtime files only. | `package.json:16` |
 
 ---
 
@@ -337,6 +357,7 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | `FR-RUN-003` | `F4` | `BR-OPS-01` |
 | `FR-RUN-004` | `F4` | `BR-AUTH-01`, `BR-OPS-01` |
 | `FR-RUN-005` | `F4.1` | `BR-AUTH-01`, `BR-OPS-03` |
+| `FR-RUN-006` | `F4` | `BR-DATA-04` |
 | `FR-PROF-001` | `F5` | `BR-SEC-01` |
 | `FR-PROF-002` | `F5` | `BR-DATA-03` |
 | `FR-PROF-003` | `F5` | `BR-SEC-02`, `BR-DATA-03` |
@@ -346,9 +367,11 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | `FR-OPS-002` | `F6` | `BR-OPS-01` |
 | `FR-OPS-003` | `F6` | `BR-OPS-02` |
 | `FR-OPS-004` | `F6` | `BR-OPS-03` |
+| `FR-OPS-005` | `F6` | `BR-OPS-04` |
 | `NFR-PERF-001` | `F4` | none |
 | `NFR-REL-001` | `F1` | `BR-DATA-01` |
 | `NFR-REL-002` | `F2` | `BR-AUTH-01` |
+| `NFR-REL-003` | `F4` | `BR-DATA-04` |
 | `NFR-SEC-001` | `F5` | `BR-SEC-01` |
 | `NFR-SEC-002` | `F2` | `BR-SEC-02` |
 | `NFR-USE-001` | `F1`-`F6` | `BR-OPS-01` |
@@ -365,3 +388,4 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | 1.0.0 | 2026-05-07 | itsddvn | Initial SRS extraction from README, source, and tests. |
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota reporting, tmux install check, and tmux diagnostics requirements. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware default and next account selection requirements. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package publication, tmux opt-in install, and expanded redaction requirements. |

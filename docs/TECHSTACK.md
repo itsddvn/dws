@@ -1,16 +1,16 @@
 # Tech Stack - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0, `package.json`, `package-lock.json`, `tsconfig.json`, `vitest.config.ts`, `eslint.config.mjs`
+**Source:** PRD v1.3.0, `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.build.json`, `vitest.config.ts`, `eslint.config.mjs`
 **Owner:** itsddvn
 
 ---
 
 ## 1. Purpose
 
-This document is the source of truth for technology choices in `devin-switcher`. `package.json` is the product manifest source for project version and requested dependency ranges; `package-lock.json` is the installed dependency source but currently has stale root package version metadata.
+This document is the source of truth for technology choices in `devin-switcher`. `package.json` is the product manifest source for package name, version, binary mapping, publish files, scripts, and requested dependency ranges; `package-lock.json` is the installed dependency source.
 
 ## 2. Conventions
 
@@ -23,16 +23,17 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | ID | Layer | Choice | Version | Lifecycle | Source |
 |----|-------|--------|---------|-----------|--------|
 | `TS-LANG-01` | Language | TypeScript | 5.9.3 | Adopted | `package-lock.json:2962` |
-| `TS-RT-02` | Runtime | Node.js | >=20 | Adopted | `package.json:15` |
-| `TS-FW-03` | CLI framework | commander | 14.0.3 installed, `^14.0.2` requested | Adopted | `package.json:18`, `package-lock.json:1618` |
-| `TS-BUILD-04` | Build compiler | TypeScript compiler | 5.9.3 | Adopted | `package.json:24`, `tsconfig.json:1` |
-| `TS-TEST-05` | Test framework | Vitest | 4.1.5 installed, `^4.0.14` requested | Adopted | `package.json:25`, `package-lock.json:3094` |
-| `TS-TEST-06` | Integration test runner | tsx | 4.21.0 installed, `^4.20.6` requested | Adopted | `package.json:23`, `package-lock.json:2928` |
-| `TS-BUILD-07` | Lint | ESLint | 9.39.4 installed, `^9.39.1` requested | Adopted | `package.json:21`, `package-lock.json:1753` |
-| `TS-BUILD-08` | TypeScript ESLint | typescript-eslint | 8.59.2 installed, `^8.46.4` requested | Adopted | `package.json:26`, `package-lock.json:2975` |
+| `TS-RT-02` | Runtime | Node.js | >=20 | Adopted | `package.json:38` |
+| `TS-FW-03` | CLI framework | commander | 14.0.3 installed, `^14.0.2` requested | Adopted | `package.json:41`, `package-lock.json:1618` |
+| `TS-BUILD-04` | Build compiler | TypeScript compiler | 5.9.3 | Adopted | `package.json:27`, `package.json:48`, `tsconfig.json:1`, `tsconfig.build.json:1` |
+| `TS-TEST-05` | Test framework | Vitest | 4.1.5 installed, `^4.0.14` requested | Adopted | `package.json:50`, `package-lock.json:3094` |
+| `TS-TEST-06` | Integration test runner | tsx | 4.21.0 installed, `^4.20.6` requested | Adopted | `package.json:47`, `package-lock.json:2928` |
+| `TS-BUILD-07` | Lint | ESLint | 9.39.4 installed, `^9.39.1` requested | Adopted | `package.json:46`, `package-lock.json:1753` |
+| `TS-BUILD-08` | TypeScript ESLint | typescript-eslint | 8.59.2 installed, `^8.46.4` requested | Adopted | `package.json:49`, `package-lock.json:2975` |
 | `TS-SEC-09` | Credential process | Devin CLI | External binary on `PATH` | Adopted | `README.md:14`, `src/core/auth.ts:35` |
 | `TS-DATA-10` | Persistence | Local JSON file | Store file version 1 | Adopted | `src/core/store.ts:18` |
 | `TS-INFRA-11` | Terminal automation | tmux | External binary on `PATH` | Adopted | `README.md:14`, `scripts/ensure-tmux.js:1`, `src/core/quota.ts:1` |
+| `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.1` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
 
 ## 4. Detail by Choice
 
@@ -59,7 +60,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 **Version (pinned):** >=20
 **Lifecycle:** Adopted
 **License:** MIT-style Node.js license
-**Lock file ref:** `package.json:15`
+**Lock file ref:** `package.json:38`
 **Rationale:** Node.js supports the package distribution and subprocess model used by the CLI.
 **Alternatives considered:**
 
@@ -93,15 +94,15 @@ This document is the source of truth for technology choices in `devin-switcher`.
 **Version (pinned):** 5.9.3 installed
 **Lifecycle:** Adopted
 **License:** Apache-2.0
-**Lock file ref:** `package-lock.json:2962`
-**Rationale:** `tsc` emits CommonJS files consumed by `bin/dsw`.
+**Lock file ref:** `package-lock.json:2962`, `tsconfig.build.json:1`
+**Rationale:** `tsc` emits CommonJS files consumed by `bin/dsw`; build output is constrained to runtime `src` files for npm packaging.
 **Alternatives considered:**
 
 | Option | Version | Why rejected |
 |--------|---------|--------------|
 | esbuild | n/a | Bundle output is unnecessary for this small CLI. |
 
-**Upgrade policy:** Patch/minor after `npm run typecheck` and `npm run build`.
+**Upgrade policy:** Patch/minor after `npm run typecheck`, `npm run build`, and `npm pack --dry-run`.
 
 ### TS-TEST-05 Vitest
 
@@ -216,7 +217,24 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | Direct Devin private API | n/a | Not documented in the repo and would increase auth/secret handling scope. |
 | Expect-style automation | n/a | Adds another dependency while tmux is already broadly available and user-approved. |
 
-**Upgrade policy:** Doctor and postinstall checks must continue to detect tmux availability; quota integration tests must pass.
+**Upgrade policy:** Doctor and postinstall checks must continue to detect tmux availability; quota integration tests must pass; default install must not run OS package managers unless `DSW_INSTALL_TMUX=1`.
+
+### TS-PKG-12 npm Package
+
+**Layer:** Distribution
+**Version (pinned):** `@itsddvn/dsw@0.4.1`
+**Lifecycle:** Adopted
+**License:** Public npm package; source repository license is not declared in `package.json`.
+**Lock file ref:** `package.json:2`, `package.json:3`, `package.json:13`, `package.json:16`, `package-lock.json:2`
+**Rationale:** A scoped npm package enables `npm install -g @itsddvn/dsw` while preserving the short `dsw` binary name and enabling npm-backed `dsw update`.
+**Alternatives considered:**
+
+| Option | Version | Why rejected |
+|--------|---------|--------------|
+| Unscoped `dsw` package | n/a | Existing public package name is unrelated and unavailable for this project. |
+| Git-only install | n/a | Requires checkout/link workflow and does not support normal global npm updates. |
+
+**Upgrade policy:** Release requires package/lock version parity, `npm pack --dry-run`, and verification that packaged `bin/dsw` resolves to `dist/src/cli/index.js`.
 
 ## 5. Version Pin Strategy
 
@@ -227,14 +245,15 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | External Devin CLI | Runtime detection | User controls installed Devin binary. |
 | External tmux binary | Runtime detection and postinstall check | OS package managers own tmux installation and patch cadence. |
 | Store schema | Numeric store version | Enables future migration. |
+| Package version | `package.json` plus lock-file root | Keeps npm publish, `dsw update`, and release docs aligned. |
 
 ## 6. Lock File Inventory
 
 | File | Path | Tool | Last regen |
 |------|------|------|-----------|
-| `package-lock.json` | `./package-lock.json` | npm | Unknown; currently stale against `package.json` root version. |
+| `package-lock.json` | `./package-lock.json` | npm | 2026-05-07; root metadata matches `package.json`. |
 
-Lock files MUST be committed. Lock drift SHOULD be corrected before release.
+Lock files MUST be committed. Root package name/version drift is release-blocking.
 
 ## 7. License Inventory
 
@@ -250,6 +269,7 @@ Forbidden licenses: none documented in code.
 
 - `npm install` should honor `package-lock.json`.
 - `npm audit` or an equivalent scanner should run before public release.
+- `npm pack --dry-run` should show only runtime package files: `bin`, `dist/src`, `scripts/ensure-tmux.js`, `README.md`, and `package.json`.
 - Credentials remain owned by the Devin CLI under profile data dirs; `dsw` only isolates where Devin writes them.
 
 ---
@@ -271,6 +291,7 @@ Forbidden licenses: none documented in code.
 | `TS-SEC-09` | PRD section 4.2, section 4.4, section 4.5 |
 | `TS-DATA-10` | PRD section 5.1 |
 | `TS-INFRA-11` | PRD section 4.1, section 4.6 |
+| `TS-PKG-12` | PRD section 4.6 |
 
 ### TS -> ARCHITECTURE component dependencies
 
@@ -287,6 +308,7 @@ Forbidden licenses: none documented in code.
 | `TS-SEC-09` | `C-04`, `C-05` |
 | `TS-DATA-10` | `C-02` |
 | `TS-INFRA-11` | `C-01`, `C-07` |
+| `TS-PKG-12` | `C-01`, `C-06` |
 
 ### TS -> NFR / BR
 
@@ -296,6 +318,7 @@ Forbidden licenses: none documented in code.
 | `TS-DATA-10` | `BR-DATA-01`, `NFR-REL-001` |
 | `TS-TEST-05` | `NFR-MAINT-001` |
 | `TS-INFRA-11` | `BR-OPS-03`, `NFR-COMPAT-002` |
+| `TS-PKG-12` | `BR-OPS-02`, `BR-OPS-04`, `FR-OPS-002`, `FR-OPS-003`, `FR-OPS-005` |
 
 ## Change Log
 
@@ -303,3 +326,4 @@ Forbidden licenses: none documented in code.
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added tmux as the terminal automation dependency for quota reporting. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield extraction from manifests and config files. |
+| 1.2.0 | 2026-05-07 | itsddvn | Added npm package distribution, build-package config, and resolved lock metadata drift. |

@@ -1,9 +1,9 @@
 # Architecture - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.2.0, TECHSTACK v1.1.0, `src/`, `tests/`, `README.md`
+**Source:** PRD v1.3.0, TECHSTACK v1.2.0, `src/`, `tests/`, `README.md`, `package.json`
 **Owner:** itsddvn
 
 ---
@@ -42,7 +42,7 @@ The operator runs `dsw` in a terminal. `dsw` reads/writes local files, spawns th
 ```mermaid
 flowchart LR
     cli[Node.js process: dsw\nC-01]
-    store[(accounts.json\nC-02)]
+    store[(accounts.json + quota-cache.json\nC-02)]
     profiles[(profile dirs\nC-03)]
     devin[devin subprocess\nC-04]
     shared[(shared Devin state/config\nC-05)]
@@ -78,18 +78,18 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 
 ### `C-02` Account Store
 
-**Responsibility:** Persist and normalize account metadata.
+**Responsibility:** Persist and normalize account metadata and local quota cache entries.
 **Type:** In-process library.
-**Owned data:** Local JSON account store.
-**Exposed interface:** `AccountStore` methods.
+**Owned data:** Local JSON account store and `quota-cache.json`.
+**Exposed interface:** `AccountStore` methods, `QuotaCache` helpers, atomic JSON helpers.
 **Consumes:** Local filesystem.
 **Tech:** `TS-LANG-01`, `TS-DATA-10`.
-**Source dir:** `src/core/store.ts`.
+**Source dir:** `src/core/store.ts`, `src/core/quota-cache.ts`, `src/util/atomic-write.ts`.
 **Process boundary:** In-process with `C-01`.
 **Scaling:** Single local writer assumed.
 **Failure mode:** Throws read/write validation errors; command catches top-level failures.
-**Related FRs:** `FR-ACC-001`, `FR-ACC-002`, `FR-ACC-003`, `FR-ACC-004`.
-**Related BR:** `BR-DATA-01`.
+**Related FRs:** `FR-ACC-001`, `FR-ACC-002`, `FR-ACC-003`, `FR-ACC-004`, `FR-RUN-006`.
+**Related BR:** `BR-DATA-01`, `BR-DATA-04`.
 
 ### `C-03` Profile Filesystem
 
@@ -99,7 +99,7 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 **Exposed interface:** `resolveProfilePaths`, `ensureProfileDirs`, `removeProfileDir`.
 **Consumes:** App path resolution.
 **Tech:** `TS-LANG-01`, `TS-DATA-10`.
-**Source dir:** `src/core/profile-paths.ts`, `src/config/paths.ts`.
+**Source dir:** `src/core/profile-paths.ts`, `src/config/paths.ts`, `src/util/account-name.ts`.
 **Process boundary:** In-process with `C-01`.
 **Scaling:** One profile directory per account.
 **Failure mode:** Filesystem errors abort the command.
@@ -108,13 +108,13 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 
 ### `C-04` Devin Auth and Runner Adapter
 
-**Responsibility:** Spawn Devin login/status/run commands under a profile environment.
+**Responsibility:** Spawn Devin login/status/run commands under a profile environment and redact captured auth/status output.
 **Type:** In-process adapter plus subprocess.
 **Owned data:** None; Devin writes credentials and runtime state.
 **Exposed interface:** `runDevinLogin`, `readAuthStatus`, `runDevinForAccount`.
 **Consumes:** External `devin` binary.
 **Tech:** `TS-LANG-01`, `TS-SEC-09`.
-**Source dir:** `src/core/auth.ts`, `src/core/runner.ts`, `src/core/profile-env.ts`.
+**Source dir:** `src/core/auth.ts`, `src/core/runner.ts`, `src/core/profile-env.ts`, `src/util/exec.ts`, `src/util/redact.ts`.
 **Process boundary:** `devin` child process.
 **Scaling:** One child process per invocation.
 **Failure mode:** Child error/exit code is returned or converted to command error.
@@ -138,32 +138,32 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 
 ### `C-06` Build and Test Harness
 
-**Responsibility:** Typecheck, lint, build, and test the CLI with a fake Devin binary.
+**Responsibility:** Typecheck, lint, build, package, and test the CLI with a fake Devin binary.
 **Type:** Development tooling.
 **Owned data:** Test sandboxes and fake Devin script.
-**Exposed interface:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`.
+**Exposed interface:** `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm pack --dry-run`.
 **Consumes:** `C-01` through integration tests.
-**Tech:** `TS-BUILD-04`, `TS-TEST-05`, `TS-TEST-06`, `TS-BUILD-07`, `TS-BUILD-08`.
-**Source dir:** `tests/`, `scripts/fake-devin.ts`.
+**Tech:** `TS-BUILD-04`, `TS-TEST-05`, `TS-TEST-06`, `TS-BUILD-07`, `TS-BUILD-08`, `TS-PKG-12`.
+**Source dir:** `tests/`, `scripts/fake-devin.ts`, `tsconfig.build.json`, `package.json`.
 **Process boundary:** Test runner process.
 **Scaling:** Local/CI test runs.
 **Failure mode:** Failing specs or build checks block release.
-**Related FRs:** `FR-OPS-003`, `FR-OPS-004`.
-**Related BR:** `BR-OPS-02`.
+**Related FRs:** `FR-OPS-003`, `FR-OPS-004`, `FR-OPS-005`.
+**Related BR:** `BR-OPS-02`, `BR-OPS-04`.
 
 ### `C-07` Quota Terminal Automation
 
-**Responsibility:** Run Devin's interactive `/usage` command per ready account and parse quota output.
+**Responsibility:** Run Devin's interactive `/usage` command per ready account, parse quota output, warn on unparseable output, and coordinate cache refresh for automatic selection.
 **Type:** In-process adapter plus tmux subprocesses.
 **Owned data:** None; captures transient terminal output only.
 **Exposed interface:** Quota collection and parser functions.
 **Consumes:** `C-03`, `C-04` profile env construction, external `tmux`, external `devin`.
 **Tech:** `TS-LANG-01`, `TS-RT-02`, `TS-SEC-09`, `TS-INFRA-11`.
-**Source dir:** `src/core/quota.ts`, `src/cli/commands/quota.ts`, `scripts/ensure-tmux.js`.
+**Source dir:** `src/core/quota.ts`, `src/core/quota-cache.ts`, `src/cli/commands/_shared.ts`, `src/cli/commands/quota.ts`, `scripts/ensure-tmux.js`.
 **Process boundary:** tmux server/session plus Devin subprocess inside the pane.
 **Scaling:** One short-lived tmux session per account during `dsw quota`.
-**Failure mode:** Per-account quota failures are reported without stopping the whole scan; tmux absence is surfaced by doctor/postinstall.
-**Related FRs:** `FR-RUN-005`, `FR-OPS-004`.
+**Failure mode:** Per-account quota failures are reported without stopping the whole scan; tmux absence is surfaced by doctor/postinstall; unparseable success output emits one warning.
+**Related FRs:** `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`.
 **Related BR:** `BR-AUTH-01`, `BR-OPS-03`.
 
 ## 6. Data Flow
@@ -196,16 +196,18 @@ sequenceDiagram
     participant CLI as C-01 CLI
     participant Store as C-02 Store
     participant Runtime as C-05 Runtime Sync
+    participant Quota as C-07 Quota
     participant Devin as C-04 Devin
     Operator->>CLI: dsw [args...]
-    CLI->>Quota: read quota for ready accounts
+    CLI->>Quota: read cached/fresh quota for ready accounts
     Quota-->>CLI: quota results
     CLI->>Store: list ready accounts
     CLI->>CLI: pick highest remaining quota, LRU tie-break
-    CLI->>Store: touch selected lastUsedAt
     CLI->>Runtime: prepare profile runtime
     CLI->>Devin: spawn devin [args...] with XDG env
+    CLI->>Store: touch selected lastUsedAt after spawn
     Devin-->>CLI: exit code
+    CLI->>Quota: invalidate selected account cache entry
     CLI->>Runtime: persist profile runtime
     CLI-->>Operator: propagated exit code
 ```
@@ -227,6 +229,7 @@ sequenceDiagram
     Quota->>Devin: send /usage
     Tmux-->>Quota: captured pane output
     Quota-->>CLI: parsed quota rows
+    CLI->>Store: refresh ok/exhausted quota cache entries
     CLI-->>Operator: quota table
 ```
 
@@ -238,7 +241,7 @@ sequenceDiagram
 |-------------|------------|------------|---------------|
 | local dev | User workstation | all | none |
 | CI | Ephemeral runner | `C-06`, fake `devin` | none |
-| production use | User workstation | `C-01` through `C-05` | none |
+| production use | User workstation | `C-01` through `C-07` | none |
 
 ### 7.2 Network
 
@@ -254,7 +257,7 @@ flowchart TB
         dsw[C-01 dsw Node process]
         devin[C-04 devin child process]
         tmux[C-07 tmux quota session]
-        store[(C-02 accounts.json)]
+        store[(C-02 accounts.json + quota-cache.json)]
         profiles[(C-03 profile dirs)]
         shared[(C-05 shared Devin state)]
     end
@@ -281,8 +284,8 @@ flowchart TB
 |---------|----------|------------------|
 | AuthN/Z | Delegated to Devin CLI; `dsw` isolates env paths. | `C-04`, `C-05` |
 | Observability | Terminal stdout/stderr only. | `C-01` |
-| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, XDG env during Devin subprocesses. | `C-03`, `C-05` |
-| Secrets | Credentials are written by Devin inside profile data dir; auth-like strings are redacted in parser output. | `C-04`, `C-05` |
+| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`, `DSW_QUOTA_TIMEOUT_MS`, `DSW_QUOTA_STARTUP_DELAY_MS`, `DSW_INSTALL_TMUX`, `DSW_SKIP_TMUX_INSTALL`, XDG env during Devin subprocesses. | `C-03`, `C-05`, `C-07` |
+| Secrets | Credentials are written by Devin inside profile data dir; auth-like strings, API keys, and Bearer tokens are redacted in parser output. | `C-04`, `C-05` |
 | Healthchecks | `dsw doctor` checks paths, `devin --version`, and `tmux -V`. | `C-01`, `C-04`, `C-07` |
 | Backpressure | Not applicable for a local synchronous CLI. | n/a |
 
@@ -341,16 +344,16 @@ flowchart TB
 **Status:** Inferred
 **Date:** 2026-05-07
 **Context:** Operators need `dsw` and `dsw next` to avoid accounts that are already exhausted.
-**Decision:** Default `dsw` and `dsw next` read quota for all ready accounts first, then select the account with the highest known remaining quota, using least-recently-used as a tie-breaker.
+**Decision:** Default `dsw` and `dsw next` read quota for all ready accounts first, using fresh cache entries when valid, then select the account with the highest known remaining quota, using least-recently-used as a tie-breaker.
 **Consequences:**
 - Positive: Automatic runs avoid known exhausted accounts.
-- Negative: Default and next execution wait for quota checks before spawning Devin.
-- Neutral: If quota checks fail, selection falls back to the prior deterministic local behavior.
+- Negative: Stale cached quota can briefly overstate availability until the TTL expires.
+- Neutral: If quota checks fail, selection falls back to the prior deterministic local behavior; after a selected account runs, its cache entry is invalidated.
 **Alternatives considered:**
 - Ignoring quota for automatic runs - rejected after user requested quota-first selection.
 **Related TS:** `TS-LANG-01`, `TS-INFRA-11`
 **Related components:** `C-01`, `C-02`, `C-04`, `C-07`
-**Source:** `src/core/runner.ts:39`, `src/cli/commands/default.ts:1`, `src/cli/commands/next.ts:1`
+**Source:** `src/core/runner.ts:39`, `src/core/quota-cache.ts:1`, `src/cli/commands/_shared.ts:1`
 
 ### `AD-05` Use fake Devin for integration tests
 
@@ -366,7 +369,7 @@ flowchart TB
 - Running real Devin in tests - rejected due to credential risk.
 **Related TS:** `TS-TEST-05`, `TS-TEST-06`
 **Related components:** `C-06`
-**Source:** `tests/integration/cli.spec.ts:21`, `scripts/fake-devin.ts:1`
+**Source:** `tests/integration/cli.spec.ts`, `scripts/fake-devin.ts:1`
 
 ### `AD-06` Use tmux for quota reporting
 
@@ -385,14 +388,32 @@ flowchart TB
 **Related components:** `C-01`, `C-07`
 **Source:** `src/core/quota.ts:1`, `scripts/ensure-tmux.js:1`
 
+### `AD-07` Publish as scoped npm package
+
+**Status:** Adopted
+**Date:** 2026-05-07
+**Context:** Operators need `npm install -g @itsddvn/dsw` and package installs need `dsw update` to resolve a public package name.
+**Decision:** Publish as `@itsddvn/dsw`, expose the `dsw` binary through package `bin`, and ship only runtime files in the npm tarball.
+**Consequences:**
+- Positive: Global npm installs work without a git checkout.
+- Negative: Release process must keep package version, lock version, CLI version output, and tarball contents aligned.
+- Neutral: Git checkout installs remain supported through `npm link`.
+**Alternatives considered:**
+- Unscoped package - rejected because the short package name is unrelated/unavailable.
+- Git-only distribution - rejected because it makes updates and global installs less standard.
+**Related TS:** `TS-PKG-12`
+**Related components:** `C-01`, `C-06`
+**Source:** `package.json:2`, `package.json:13`, `package.json:16`
+
 ## 11. Risks & Trade-offs
 
 | Risk | Impact | Mitigation | Tracked in |
 |------|--------|------------|------------|
 | Concurrent store writes can race. | Metadata loss or stale `lastUsedAt`. | Keep single-operator assumption; add file lock if needed. | PRD section 8 |
 | Devin output changes. | Auth metadata parsing breaks. | Redact and parse minimal fields; cover fake output; run doctor manually. | PRD section 8 |
-| Package lock root version stale. | Release metadata confusion. | Refresh lock file in maintenance work. | PRD section 8 |
-| tmux unavailable. | `dsw quota` cannot automate interactive `/usage`. | Postinstall check/install and doctor diagnostics. | PRD section 8 |
+| Package metadata or CLI version output drifts. | Release metadata confusion. | Verify package/lock parity, `dsw --version`, and `npm pack --dry-run`. | PRD section 8 |
+| tmux unavailable. | `dsw quota` cannot automate interactive `/usage`. | Postinstall warning/opt-in install and doctor diagnostics. | PRD section 8 |
+| Quota cache becomes stale. | Automatic selection may choose an account with less quota than expected. | TTL env override and selected-account cache invalidation. | PRD section 4.4 |
 
 ---
 
@@ -402,24 +423,24 @@ flowchart TB
 
 | Component | FRs implemented |
 |-----------|-----------------|
-| `C-01` | `FR-CLI-001`, `FR-CLI-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-004`, `FR-RUN-005`, `FR-OPS-001`, `FR-OPS-002`, `FR-OPS-004` |
-| `C-02` | `FR-ACC-001`, `FR-ACC-002`, `FR-ACC-003`, `FR-ACC-004` |
+| `C-01` | `FR-CLI-001`, `FR-CLI-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-004`, `FR-RUN-005`, `FR-OPS-001`, `FR-OPS-002`, `FR-OPS-004`, `FR-OPS-005` |
+| `C-02` | `FR-ACC-001`, `FR-ACC-002`, `FR-ACC-003`, `FR-ACC-004`, `FR-RUN-006` |
 | `C-03` | `FR-PROF-001`, `FR-PROF-004` |
 | `C-04` | `FR-AUTH-001`, `FR-AUTH-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-004` |
 | `C-05` | `FR-PROF-002`, `FR-PROF-003`, `FR-PROF-005` |
-| `C-06` | `FR-OPS-003`, `FR-OPS-004` |
-| `C-07` | `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002` |
+| `C-06` | `FR-OPS-003`, `FR-OPS-004`, `FR-OPS-005` |
+| `C-07` | `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`, `NFR-COMPAT-002` |
 
 ### Components -> TECHSTACK
 
 | Component | TS IDs consumed |
 |-----------|-----------------|
-| `C-01` | `TS-LANG-01`, `TS-RT-02`, `TS-FW-03` |
+| `C-01` | `TS-LANG-01`, `TS-RT-02`, `TS-FW-03`, `TS-PKG-12` |
 | `C-02` | `TS-LANG-01`, `TS-DATA-10` |
 | `C-03` | `TS-LANG-01`, `TS-DATA-10` |
 | `C-04` | `TS-LANG-01`, `TS-SEC-09` |
 | `C-05` | `TS-LANG-01`, `TS-SEC-09`, `TS-DATA-10` |
-| `C-06` | `TS-BUILD-04`, `TS-TEST-05`, `TS-TEST-06`, `TS-BUILD-07`, `TS-BUILD-08` |
+| `C-06` | `TS-BUILD-04`, `TS-TEST-05`, `TS-TEST-06`, `TS-BUILD-07`, `TS-BUILD-08`, `TS-PKG-12` |
 | `C-07` | `TS-LANG-01`, `TS-RT-02`, `TS-SEC-09`, `TS-INFRA-11` |
 
 ### ADRs -> Components
@@ -432,6 +453,7 @@ flowchart TB
 | `AD-04` | `C-01`, `C-02`, `C-04` |
 | `AD-05` | `C-06` |
 | `AD-06` | `C-01`, `C-07` |
+| `AD-07` | `C-01`, `C-06` |
 
 ## Change Log
 
@@ -440,3 +462,4 @@ flowchart TB
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota terminal automation, tmux integration, and related ADR/traceability. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield architecture extraction from current code. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run flow and ADR for quota-aware selection. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package distribution ADR, helper modules, and current env/package concerns. |

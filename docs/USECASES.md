@@ -1,9 +1,9 @@
 # Use Cases - devin-switcher
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.2.0, SRS v1.2.0
+**Source:** PRD v1.3.0, SRS v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -148,18 +148,19 @@
 - **Main Success Scenario:**
   1. CLI loads accounts.
   2. CLI filters out accounts needing login.
-  3. CLI checks quota for ready accounts.
+  3. CLI reads fresh cached quota entries and checks stale/missing quota for ready accounts unless `DSW_SKIP_QUOTA=1`.
   4. CLI chooses the account with the highest known remaining quota, using least-recently-used as the tie-breaker.
-  5. CLI updates selected account `lastUsedAt`.
-  6. CLI prepares profile runtime.
-  7. CLI spawns `devin` with forwarded args and profile env.
+  5. CLI prepares profile runtime.
+  6. CLI spawns `devin` with forwarded args and profile env.
+  7. CLI updates selected account `lastUsedAt` after Devin starts.
   8. CLI persists runtime config after Devin exits.
+  9. CLI invalidates the selected account's quota cache entry.
 - **Extensions:**
   - 1a. No accounts exist -> CLI instructs operator to run `dsw add <name>`.
   - 2a. No eligible accounts exist -> CLI instructs operator to run `dsw login <name>`.
 - **Postconditions:** Selected account has updated `lastUsedAt`.
-- **Related SRS:** `FR-RUN-001`, `FR-RUN-003`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003`.
-- **Related BR:** `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`.
+- **Related SRS:** `FR-RUN-001`, `FR-RUN-003`, `FR-RUN-006`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003`.
+- **Related BR:** `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`, `BR-DATA-04`.
 - **Route:** n/a.
 
 ### UC-RUN-02 Run next account by maximum quota
@@ -171,15 +172,15 @@
 - **Trigger:** Operator runs `dsw next [args...]`.
 - **Main Success Scenario:**
   1. CLI loads accounts.
-  2. CLI checks quota for ready accounts.
+  2. CLI reads fresh cached quota entries and checks stale/missing quota for ready accounts unless `DSW_SKIP_QUOTA=1`.
   3. CLI selects the account with the highest known remaining quota.
   4. CLI runs Devin under the selected account profile.
 - **Extensions:**
   - 2a. Account needs login -> CLI skips it before quota checks.
   - 3a. All ready accounts are exhausted -> CLI exits with no-eligible error.
 - **Postconditions:** Selected account has updated `lastUsedAt`.
-- **Related SRS:** `FR-RUN-002`, `FR-RUN-003`.
-- **Related BR:** `BR-AUTH-01`.
+- **Related SRS:** `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-006`.
+- **Related BR:** `BR-AUTH-01`, `BR-DATA-04`.
 - **Route:** n/a.
 
 ### UC-RUN-03 Run specific account
@@ -216,13 +217,14 @@
   3. CLI starts a short-lived tmux session for each ready account with that account's profile env.
   4. CLI sends `/usage`, captures terminal output, and destroys the session.
   5. CLI parses tier, used percentage, remaining percentage, and reset timing when present.
-  6. CLI prints a quota table for all managed accounts.
+  6. CLI refreshes ok/exhausted quota cache entries.
+  7. CLI prints a quota table for all managed accounts.
 - **Extensions:**
   - 2a. Account needs login -> row status is `needs login`.
   - 3a. tmux or Devin fails for one account -> row status is `error`; scan continues.
-- **Postconditions:** Store is unchanged.
-- **Related SRS:** `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002`.
-- **Related BR:** `BR-AUTH-01`, `BR-OPS-03`.
+- **Postconditions:** Account store is unchanged; quota cache may be refreshed.
+- **Related SRS:** `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`, `NFR-COMPAT-002`.
+- **Related BR:** `BR-AUTH-01`, `BR-DATA-04`, `BR-OPS-03`.
 - **Route:** n/a.
 
 ### UC-OPS-01 Diagnose install
@@ -259,7 +261,7 @@
   3. CLI prints commands for dry-run or executes them sequentially.
   4. CLI stops on first non-zero command.
 - **Extensions:**
-  - 2a. npm install path is private package -> CLI throws cannot-update error.
+  - 2a. Package name is missing from package metadata -> CLI throws cannot-update error.
 - **Postconditions:** Install is updated or operator sees the failing step.
 - **Related SRS:** `FR-OPS-002`.
 - **Related BR:** `BR-OPS-01`.
@@ -277,12 +279,14 @@
   2. Maintainer runs `npm run lint`.
   3. Maintainer runs `npm test`.
   4. Maintainer runs `npm run build`.
-  5. Maintainer verifies package version source.
+  5. Maintainer verifies package and lock root metadata match.
+  6. Maintainer verifies `dsw --version` matches `package.json`.
+  7. Maintainer runs `npm pack --dry-run` and verifies runtime-only package files.
 - **Extensions:**
   - Any command fails -> release is blocked until fixed.
 - **Postconditions:** Release candidate meets verification gate.
-- **Related SRS:** `FR-OPS-003`, `NFR-MAINT-001`, `NFR-MAINT-002`.
-- **Related BR:** `BR-OPS-02`.
+- **Related SRS:** `FR-OPS-003`, `FR-OPS-005`, `NFR-MAINT-001`, `NFR-MAINT-002`.
+- **Related BR:** `BR-OPS-02`, `BR-OPS-04`.
 - **Route:** n/a.
 
 ## 4. Briefly-Stated Use Cases
@@ -301,13 +305,13 @@ All selected use cases are detailed in section 3.
 | `UC-AUTH-02` | `FR-AUTH-001`, `FR-AUTH-003` |
 | `UC-AUTH-03` | `FR-AUTH-002`, `FR-ACC-003` |
 | `UC-ACC-02` | `FR-ACC-004` |
-| `UC-RUN-01` | `FR-RUN-001`, `FR-RUN-003`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` |
-| `UC-RUN-02` | `FR-RUN-002`, `FR-RUN-003` |
+| `UC-RUN-01` | `FR-RUN-001`, `FR-RUN-003`, `FR-RUN-006`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` |
+| `UC-RUN-02` | `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-006` |
 | `UC-RUN-03` | `FR-RUN-004`, `FR-RUN-003`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` |
-| `UC-OPS-04` | `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002` |
+| `UC-OPS-04` | `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`, `NFR-COMPAT-002` |
 | `UC-OPS-01` | `FR-OPS-001`, `NFR-OBS-001` |
 | `UC-OPS-02` | `FR-OPS-002` |
-| `UC-OPS-03` | `FR-OPS-003`, `NFR-MAINT-001`, `NFR-MAINT-002` |
+| `UC-OPS-03` | `FR-OPS-003`, `FR-OPS-005`, `NFR-MAINT-001`, `NFR-MAINT-002` |
 
 ### UC -> SITEMAP route
 | UC ID | Route |
@@ -333,13 +337,13 @@ All selected use cases are detailed in section 3.
 | `UC-AUTH-02` | `BR-DATA-01` |
 | `UC-AUTH-03` | `BR-AUTH-01`, `BR-SEC-01` |
 | `UC-ACC-02` | `BR-DATA-02` |
-| `UC-RUN-01` | `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03` |
-| `UC-RUN-02` | `BR-AUTH-01` |
+| `UC-RUN-01` | `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`, `BR-DATA-04` |
+| `UC-RUN-02` | `BR-AUTH-01`, `BR-DATA-04` |
 | `UC-RUN-03` | `BR-AUTH-01`, `BR-OPS-01` |
-| `UC-OPS-04` | `BR-AUTH-01`, `BR-OPS-03` |
+| `UC-OPS-04` | `BR-AUTH-01`, `BR-DATA-04`, `BR-OPS-03` |
 | `UC-OPS-01` | `BR-OPS-01` |
 | `UC-OPS-02` | `BR-OPS-01` |
-| `UC-OPS-03` | `BR-OPS-02` |
+| `UC-OPS-03` | `BR-OPS-02`, `BR-OPS-04` |
 
 ## Change Log
 
@@ -348,3 +352,4 @@ All selected use cases are detailed in section 3.
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct-account execution, quota reporting, and tmux-aware diagnostics use cases. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial use-case extraction from CLI commands and tests. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run use cases for quota-aware selection. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, and tmux opt-in installer use-case details. |
