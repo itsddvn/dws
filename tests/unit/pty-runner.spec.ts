@@ -57,10 +57,12 @@ describe('runDevinPtyForAccount', () => {
         }
       } as unknown as AccountStore;
       const terms: FakePtyProcess[] = [];
+      const spawnedArgs: string[][] = [];
       const ptyModule: PtyModule = {
-        spawn: () => {
+        spawn: (_file, args) => {
           const term = new FakePtyProcess();
           terms.push(term);
+          spawnedArgs.push(args);
           return term;
         }
       };
@@ -87,12 +89,64 @@ describe('runDevinPtyForAccount', () => {
 
       expect(resolved).toBe(false);
       expect(touched).toEqual(['one', 'two']);
+      expect(spawnedArgs[1]).toEqual(['-r', 'session-1']);
       expect(terms[0]!.writes).not.toContain('\u0003');
       expect(terms[1]!.writes).toEqual([]);
 
       terms[1]!.emitExit(0);
       await expect(run).resolves.toBe(0);
       expect(resolved).toBe(true);
+    } finally {
+      stdout.mockRestore();
+      stderr.mockRestore();
+      sandbox.cleanup();
+    }
+  });
+
+  it('auto-rotates recoverable errors by resuming the session with the last prompt as initial input', async () => {
+    const sandbox = createSandbox();
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const accounts = [makeAccount('one'), makeAccount('two')];
+      const store = {
+        touchLastUsed: () => accounts[0]!
+      } as unknown as AccountStore;
+      const terms: FakePtyProcess[] = [];
+      const spawnedArgs: string[][] = [];
+      const ptyModule: PtyModule = {
+        spawn: (_file, args) => {
+          const term = new FakePtyProcess();
+          terms.push(term);
+          spawnedArgs.push(args);
+          return term;
+        }
+      };
+      const rotateEngine = {
+        rotate: async () => ({ account: accounts[1]! })
+      };
+
+      const run = runDevinPtyForAccount(store, accounts[0]!, {
+        args: [],
+        appPaths: sandbox.paths,
+        baseEnv: sandbox.env,
+        autoRotate: true,
+        ptyModule,
+        rotateEngine
+      });
+
+      terms[0]!.emitData('Session ID: session-1\r\n');
+      process.stdin.emit('data', Buffer.from('retry this\r'));
+      process.stdin.emit('data', Buffer.from('\u001b[24;1R'));
+      terms[0]!.emitData('Something went wrong\n');
+      terms[0]!.emitData('  An internal error occurred. Send a message to retry');
+      await waitFor(() => terms.length === 2);
+
+      expect(spawnedArgs[1]).toEqual(['-r', 'session-1', '--', 'retry this']);
+      expect(terms[1]!.writes).toEqual([]);
+
+      terms[1]!.emitExit(0);
+      await expect(run).resolves.toBe(0);
     } finally {
       stdout.mockRestore();
       stderr.mockRestore();

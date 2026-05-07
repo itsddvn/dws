@@ -99,14 +99,13 @@ export async function runDevinPtyForAccount(
       process.stderr.write(`\ndsw: rotating from ${active.name} to ${result.account.name} and resuming ${sessionId}.\n`);
       const previous = term;
       active = result.account;
-      term = spawn(active, ['-r', sessionId]);
+      term = spawn(active, buildResumeArgs(sessionId, replay));
       try {
         previous.kill();
       } catch {
         // The child may already be gone.
       }
-      if (replay) term.write(`${replay}\r`);
-      else process.stderr.write('dsw: no safe single-line prompt to replay; resend manually if needed.\n');
+      if (!replay) process.stderr.write('dsw: no safe single-line prompt to replay; resend manually if needed.\n');
     }
 
     const onStdinData = (chunk: Buffer): void => {
@@ -132,6 +131,10 @@ export async function runDevinPtyForAccount(
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
     }
   });
+}
+
+function buildResumeArgs(sessionId: string, replay: string | null): string[] {
+  return replay ? ['-r', sessionId, '--', replay] : ['-r', sessionId];
 }
 
 function makeStdinDebugger(baseEnv: NodeJS.ProcessEnv, appPaths: AppPaths): ((data: string) => void) | undefined {

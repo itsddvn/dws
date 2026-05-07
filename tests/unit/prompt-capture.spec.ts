@@ -18,4 +18,14 @@ describe('PromptCapture', () => {
 
     expect(capture.consumeReplayCandidate()).toBeNull();
   });
+
+  it('ignores terminal control responses after a submitted prompt', () => {
+    const capture = new PromptCapture();
+
+    capture.push('retry this\r');
+    capture.push('\u001b[24;1R');
+    capture.push('\u001b]10;rgb:ffff/ffff/ffff\u0007');
+
+    expect(capture.consumeReplayCandidate()).toBe('retry this');
+  });
 });
