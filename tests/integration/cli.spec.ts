@@ -233,7 +233,7 @@ describe('dsw CLI', () => {
     const result = await runCli(sandbox, ['update', '--dry-run']);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('git pull --ff-only');
-    expect(result.stdout).toContain('npm install');
+    expect(result.stdout).toContain('npm install --include=optional');
     expect(result.stdout).toContain('npm run build');
   });
 
@@ -243,6 +243,14 @@ describe('dsw CLI', () => {
     expect(result.stdout).toContain('devin-switcher doctor');
     expect(result.stdout).toMatch(/devin: devin 0\.0\.0-fake/);
     expect(result.stdout).toMatch(/node-pty: available/);
+  });
+
+  it('doctor prints node-pty repair guidance when PTY is unavailable', async () => {
+    const result = await runCli(sandbox, ['doctor'], { DSW_DISABLE_PTY: '1' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/node-pty: unavailable/);
+    expect(result.stderr).toContain('npm install -g @itsddvn/dsw@latest --include=optional');
+    expect(result.stderr).toContain('npm rebuild -g node-pty --build-from-source');
   });
 
   it('login marks an account as needs-login when devin auth login fails', async () => {

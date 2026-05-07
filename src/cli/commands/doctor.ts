@@ -38,6 +38,9 @@ export async function runDoctor(): Promise<void> {
   }
   if (!pty.available) {
     console.error('warning: node-pty is unavailable. `dsw quota` and auto-rotate require node-pty.');
+    console.error('repair: npm install -g @itsddvn/dsw@latest --include=optional');
+    console.error('repair: npm rebuild -g node-pty --build-from-source');
+    console.error('repair: if the rebuild fails on macOS, run `xcode-select --install`, then rebuild again.');
     process.exitCode = 1;
   }
 }

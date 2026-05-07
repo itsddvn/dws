@@ -60,14 +60,11 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
         timeoutMs,
         startupDelayMs
       });
-      if (transport === 'pty' || !isPtyUnavailable(result)) {
-        return quotaResult(account, result.raw, result.timedOut, result.exitCode);
-      }
-      warnOnPtyFallback();
+      return quotaResult(account, result.raw, result.timedOut, result.exitCode);
     }
   }
 
-  if (transport === 'pty') {
+  if (transport !== 'print') {
     return {
       account,
       status: 'error',
@@ -82,17 +79,6 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
     timeoutMs
   });
   return quotaResultFromRun(account, result);
-}
-
-function isPtyUnavailable(result: QuotaPtyProbeResult): boolean {
-  return !result.timedOut && result.exitCode === null && /^PTY unavailable:/i.test(result.raw.trim());
-}
-
-let ptyFallbackWarningEmitted = false;
-function warnOnPtyFallback(): void {
-  if (ptyFallbackWarningEmitted) return;
-  ptyFallbackWarningEmitted = true;
-  process.stderr.write('dsw: warning: PTY quota probe unavailable; falling back to devin --print /usage.\n');
 }
 
 function quotaResultFromRun(account: Account, result: Awaited<ReturnType<typeof runCapture>>): AccountQuota {

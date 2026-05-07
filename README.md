@@ -12,10 +12,23 @@ Requires Node.js 20+, the `devin` binary on your `PATH`, and optional
 
 ```bash
 npm install -g @itsddvn/dsw
+dsw doctor
 ```
 
 `dsw` is now on your `PATH`. Upgrade with `dsw update` (or
-`npm install -g @itsddvn/dsw@latest`).
+`npm install -g @itsddvn/dsw@latest --include=optional`).
+
+`dsw quota` and interactive auto-rotate require the native `node-pty` package.
+If `dsw doctor` reports `node-pty` as unavailable, repair the global install:
+
+```bash
+npm install -g @itsddvn/dsw@latest --include=optional
+npm rebuild -g node-pty --build-from-source
+dsw doctor
+```
+
+On macOS, if the rebuild fails, install Apple's command line tools first with
+`xcode-select --install`, then run the rebuild again.
 
 ### Option 2 — install from a GitHub checkout
 
@@ -30,7 +43,7 @@ npm link        # exposes the `dsw` binary on your PATH
 ```
 
 `dsw update` from a git checkout runs `git pull --ff-only`,
-`npm install`, and `npm run build` for you, so subsequent updates are
+`npm install --include=optional`, and `npm run build` for you, so subsequent updates are
 just `dsw update`.
 
 ## Commands

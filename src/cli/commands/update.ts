@@ -13,7 +13,7 @@ export interface UpdateCommandOptions {
 
 const GIT_UPDATE_STEPS = [
   { command: 'git', args: ['pull', '--ff-only'] },
-  { command: 'npm', args: ['install'] },
+  { command: 'npm', args: ['install', '--include=optional'] },
   { command: 'npm', args: ['run', 'build'] }
 ];
 
@@ -46,7 +46,7 @@ function npmInstallCommands(packageJson: PackageJson): Array<{ command: string; 
   if (!packageJson.name) {
     throw new Error('Cannot update: package.json is missing a package name.');
   }
-  return [{ command: 'npm', args: ['install', '-g', `${packageJson.name}@latest`] }];
+  return [{ command: 'npm', args: ['install', '-g', `${packageJson.name}@latest`, '--include=optional'] }];
 }
 
 function findPackageRoot(startDir: string): string {

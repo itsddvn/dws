@@ -73,6 +73,7 @@ Quota resets May 7, 3:00 PM (UTC+7).
 describe('readQuotaForAccount', () => {
   it('classifies parsed 0% remaining output as exhausted', async () => {
     const quota = await readQuotaForAccount(makeAccount(), {
+      transport: 'print',
       runImpl: async () =>
         makeRunResult(`
 Trial · 0% remaining (resets in 4h 36m)
@@ -86,9 +87,10 @@ Quota resets May 7, 3:00 PM (UTC+7).
     expect(quota.summary.remainingPercent).toBe('0%');
   });
 
-  it('uses --print fallback when a test run implementation is injected', async () => {
+  it('uses --print only when print transport is explicitly requested', async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const quota = await readQuotaForAccount(makeAccount(), {
+      transport: 'print',
       startupDelayMs: 0,
       timeoutMs: 1,
       runImpl: async (command, args) => {
@@ -110,7 +112,7 @@ Quota resets May 7, 3:00 PM (UTC+7).
     expect(calls).toEqual([{ command: 'devin', args: ['--print', '/usage'] }]);
   });
 
-  it('falls back to --print when auto transport cannot start node-pty', async () => {
+  it('does not fall back to --print when auto transport cannot start node-pty', async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const quota = await readQuotaForAccount(makeAccount(), {
       ptyProbeImpl: async () => ({
@@ -118,21 +120,30 @@ Quota resets May 7, 3:00 PM (UTC+7).
         timedOut: false,
         exitCode: null
       }),
-      runImpl: async (command, args) => {
+      runImpl: async (command, args): Promise<RunResult> => {
         calls.push({ command, args });
-        return makeRunResult(`
-Trial · 74% remaining (resets in 18h 13m)
-
-Quota used: 26% (remaining: 74%)
-Quota resets May 8, 3:00 PM (UTC+7).
-`);
+        throw new Error(`unexpected call: ${command} ${args.join(' ')}`);
       }
     });
 
-    expect(quota.status).toBe('ok');
-    expect(quota.summary.remainingPercent).toBe('74%');
-    expect(quota.rawRedacted).not.toContain('PTY unavailable');
-    expect(calls).toEqual([{ command: 'devin', args: ['--print', '/usage'] }]);
+    expect(quota.status).toBe('error');
+    expect(quota.summary.remainingPercent).toBeUndefined();
+    expect(quota.rawRedacted).toContain('PTY unavailable');
+    expect(calls).toEqual([]);
+  });
+
+  it('does not use injected run implementation unless print transport is explicit', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const quota = await readQuotaForAccount(makeAccount(), {
+      runImpl: async (command, args): Promise<RunResult> => {
+        calls.push({ command, args });
+        return makeRunResult('Trial · 74% remaining');
+      }
+    });
+
+    expect(quota.status).toBe('error');
+    expect(quota.rawRedacted).toContain('print fallback disabled');
+    expect(calls).toEqual([]);
   });
 
   it('does not use print fallback when pty transport is explicitly required', async () => {
@@ -165,6 +176,7 @@ Quota resets May 8, 3:00 PM (UTC+7).
       const quota = await readQuotaForAccount(makeAccount(), {
         appPaths: sandbox.paths,
         baseEnv: sandbox.env,
+        transport: 'print',
         prepareRuntime: false,
         runImpl: async () => makeRunResult('Trial · 100% remaining')
       });
