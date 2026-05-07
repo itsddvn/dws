@@ -36,7 +36,7 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 ### 2.3 Operating Environment
 - Node.js 20 or newer.
 - `devin` binary available on `PATH` for real use.
-- `tmux` available on `PATH` for `dsw quota`.
+- Optional `node-pty` npm dependency available for `dsw quota` and interactive auto-rotate.
 - Local filesystem supports directories, file permissions, rename, and symlinks.
 - npm and git are required only for update workflows.
 
@@ -141,19 +141,19 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Components:** `C-01`, `C-02`, `C-04`, `C-07`.
 **Related BR:** `BR-AUTH-01`.
 
-#### FR-RUN-002 Quota-Aware Next Selection
-**Statement:** System SHALL check quota before `dsw next [args...]` and select the ready account with the highest known remaining quota.
-**Input:** Account list and per-account quota results.
-**Output:** Selected account or no-eligible error.
-**Acceptance:** Integration tests verify `dsw next` checks all ready accounts and selects the account with maximum remaining quota.
-**Components:** `C-01`, `C-02`, `C-04`, `C-07`.
-**Related BR:** `BR-AUTH-01`.
+#### FR-RUN-002 Removed Next Guard
+**Statement:** System SHALL reject `dsw next [args...]` with a clear removal error and SHALL NOT forward it to Devin.
+**Input:** `dsw next [args...]`.
+**Output:** Non-zero exit and removal guidance.
+**Acceptance:** Integration tests verify `dsw next` does not invoke fake Devin.
+**Components:** `C-01`.
+**Related BR:** `BR-OPS-01`.
 
 #### FR-RUN-003 Forward Devin Arguments and Exit Code
 **Statement:** System SHALL forward command args to `devin` and propagate its exit code.
 **Input:** Remaining CLI args after `dsw` selection.
 **Output:** `devin` invocation and matching exit code.
-**Acceptance:** Integration tests show forwarded args for default, `next`, and `use`.
+**Acceptance:** Integration tests show forwarded args for default, and `use`.
 **Components:** `C-04`.
 **Related BR:** `BR-OPS-01`.
 
@@ -169,12 +169,12 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Statement:** System SHALL check quota for all managed ready accounts through `dsw quota`.
 **Input:** Account list.
 **Output:** Table with account status, tier, used percentage, remaining percentage, reset duration, and reset time when available.
-**Acceptance:** Integration and unit tests parse Devin `/usage` output and skip accounts needing login; manual smoke test verifies real tmux-backed output.
+**Acceptance:** Integration and unit tests parse Devin `/usage` output and skip accounts needing login; manual smoke test verifies real hidden PTY output.
 **Components:** `C-01`, `C-02`, `C-04`, `C-07`.
 **Related BR:** `BR-AUTH-01`, `BR-OPS-01`.
 
 #### FR-RUN-006 Quota Cache
-**Statement:** System SHALL cache quota summaries for automatic default and `next` selection, respect `DSW_QUOTA_CACHE_TTL_MS`, bypass quota checks when `DSW_SKIP_QUOTA=1`, refresh cache entries from `dsw quota`, and invalidate the selected account cache entry after a Devin run starts.
+**Statement:** System SHALL cache quota summaries for automatic default selection, respect `DSW_QUOTA_CACHE_TTL_MS`, bypass quota checks when `DSW_SKIP_QUOTA=1`, refresh cache entries from `dsw quota`, and invalidate the selected account cache entry after a Devin run starts.
 **Input:** Account list, quota cache file, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`.
 **Output:** Fresh cached quota results, stale accounts to re-check, or LRU fallback when bypassed.
 **Acceptance:** Quota cache unit tests cover persistence, freshness, TTL expiry, bypass behavior, corrupt cache tolerance, and entry invalidation.
@@ -226,10 +226,10 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 ### 3.6 Operations (`FR-OPS-*`)
 
 #### FR-OPS-001 Doctor
-**Statement:** System SHALL print app paths, profile path, account count, Devin CLI version detection, and tmux version detection.
+**Statement:** System SHALL print app paths, profile path, account count, Devin CLI version detection, and node-pty availability detection.
 **Input:** `dsw doctor`.
-**Output:** Diagnostic report and warning if Devin or tmux is missing.
-**Acceptance:** Integration test verifies fake Devin version output and tmux output.
+**Output:** Diagnostic report and warning if Devin or node-pty is missing.
+**Acceptance:** Integration test verifies fake Devin version output and node-pty output.
 **Components:** `C-01`, `C-04`, `C-07`.
 **Related BR:** `BR-OPS-01`.
 
@@ -249,11 +249,11 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Components:** `C-06`.
 **Related BR:** `BR-OPS-02`.
 
-#### FR-OPS-004 tmux Install Check
-**Statement:** System SHALL run a best-effort tmux dependency checker during npm install.
-**Input:** `npm install`, local PATH, platform package manager availability, `DSW_INSTALL_TMUX`, and `DSW_SKIP_TMUX_INSTALL`.
-**Output:** tmux version confirmation, warning/manual install guidance, or opt-in automatic install attempt.
-**Acceptance:** `node scripts/ensure-tmux.js` exits 0 and reports tmux on a machine with tmux installed.
+#### FR-OPS-004 node-pty Diagnostics
+**Statement:** System SHALL report node-pty availability through `dsw doctor`.
+**Input:** local runtime and optional dependency availability.
+**Output:** node-pty availability confirmation or warning guidance.
+**Acceptance:** `dsw doctor` reports node-pty status and exits non-zero when PTY support is unavailable.
 **Components:** `C-06`, `C-07`.
 **Related BR:** `BR-OPS-01`, `BR-OPS-02`.
 
@@ -309,13 +309,13 @@ System SHALL keep TypeScript strict mode and `noUncheckedIndexedAccess` enabled.
 #### NFR-COMPAT-001 Node Compatibility
 System SHALL require Node.js 20 or newer. Acceptance: `package.json` declares `engines.node >=20`.
 
-#### NFR-COMPAT-002 tmux Availability
-System SHALL require tmux for quota reporting. Acceptance: `postinstall` checks tmux and `dsw doctor` reports tmux status.
+#### NFR-COMPAT-002 node-pty Availability
+System SHALL use node-pty for quota reporting when available. Acceptance: `dsw doctor` reports node-pty status and `dsw quota` fails clearly when unavailable.
 
 ### 4.7 Observability (`NFR-OBS-*`)
 
 #### NFR-OBS-001 Terminal Diagnostics
-System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance: doctor prints local paths, Devin detection, and tmux detection.
+System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance: doctor prints local paths, Devin detection, and node-pty availability.
 
 ## 5. Out of Scope
 
@@ -386,6 +386,6 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
 | 1.0.0 | 2026-05-07 | itsddvn | Initial SRS extraction from README, source, and tests. |
-| 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota reporting, tmux install check, and tmux diagnostics requirements. |
-| 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware default and next account selection requirements. |
-| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package publication, tmux opt-in install, and expanded redaction requirements. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota reporting, node-pty install check, and node-pty diagnostics requirements. |
+| 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware default account selection requirements. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package publication, node-pty opt-in install, and expanded redaction requirements. |

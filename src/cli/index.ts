@@ -4,13 +4,13 @@ import { runDefault } from './commands/default';
 import { runDoctor } from './commands/doctor';
 import { runList } from './commands/list';
 import { runLogin } from './commands/login';
-import { runNext } from './commands/next';
 import { runQuota } from './commands/quota';
 import { runRemove } from './commands/remove';
 import { runUpdate } from './commands/update';
 import { runUse } from './commands/use';
 
 const HELP_TOKENS = new Set(['help', '--help', '-h', '--version', '-V']);
+const REMOVED_TOKENS = new Set(['next']);
 
 function buildProgram(): Command {
   const program = new Command();
@@ -21,7 +21,7 @@ function buildProgram(): Command {
 
   program.addHelpText(
     'after',
-    `\nExamples:\n  $ dsw                 Check quota, pick the max remaining account, and run devin\n  $ dsw next            Check quota, pick the max remaining account, and run devin\n  $ dsw use work        Run devin using the 'work' account\n  $ dsw use work -p "fix bug"\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Show quota/usage for all ready accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
+    `\nExamples:\n  $ dsw                 Check quota, pick the max remaining account, and run devin\n  $ dsw use work        Run devin using the 'work' account\n  $ dsw use work -p "fix bug"\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Show quota/usage for all ready accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
   );
 
   program
@@ -56,15 +56,6 @@ function buildProgram(): Command {
     .argument('<name>', 'Account name')
     .action(async (name: string) => {
       await runLogin(name);
-    });
-
-  program
-    .command('next')
-    .description('Check quota, then run devin using the account with maximum remaining quota')
-    .allowUnknownOption(true)
-    .argument('[args...]', 'Arguments to forward to devin')
-    .action(async (args: string[]) => {
-      await runNext({ args });
     });
 
   program
@@ -115,6 +106,12 @@ export async function main(argv = process.argv): Promise<void> {
   const args = argv.slice(2);
   const program = buildProgram();
   const first = args[0];
+
+  if (first && REMOVED_TOKENS.has(first)) {
+    console.error('dsw: `dsw next` has been removed. Run `dsw` instead for quota-aware account selection.');
+    process.exitCode = 1;
+    return;
+  }
 
   if (!first || !knownTokens(program).has(first)) {
     await runDefault({ args });

@@ -25,17 +25,17 @@ flowchart LR
     operator([Local operator])
     dsw[dsw CLI]
     devin[Devin CLI]
-    tmux[tmux]
+    node-pty[node-pty]
     fs[(Local filesystem)]
     npm[npm registry or git remote]
     operator --> dsw
     dsw --> devin
-    dsw --> tmux
+    dsw --> node-pty
     dsw --> fs
     dsw --> npm
 ```
 
-The operator runs `dsw` in a terminal. `dsw` reads/writes local files, spawns the external `devin` binary, and uses tmux for interactive quota checks. Update behavior may call git and npm. The product has no server-side component.
+The operator runs `dsw` in a terminal. `dsw` reads/writes local files, spawns the external `devin` binary, and uses node-pty for interactive quota checks. Update behavior may call git and npm. The product has no server-side component.
 
 ## 4. Containers (C4 L2)
 
@@ -57,7 +57,7 @@ flowchart LR
     tests --> cli
 ```
 
-All components run on the local host. Normal execution spawns `devin`; quota reporting adds short-lived tmux sessions that run Devin under each profile environment.
+All components run on the local host. Normal execution spawns `devin`; quota reporting adds hidden node-pty sessions that run Devin under each profile environment.
 
 ## 5. Components
 
@@ -66,7 +66,7 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 **Responsibility:** Parse CLI arguments and execute command handlers.
 **Type:** CLI process.
 **Owned data:** None directly.
-**Exposed interface:** `dsw`, `dsw list`, `dsw add`, `dsw remove`, `dsw login`, `dsw next`, `dsw use`, `dsw quota`, `dsw update`, `dsw doctor`.
+**Exposed interface:** `dsw`, `dsw list`, `dsw add`, `dsw remove`, `dsw login`, `dsw use`, `dsw quota`, `dsw update`, `dsw doctor`. The removed `dsw next` token is guarded and exits before Devin forwarding.
 **Consumes:** `C-02`, `C-03`, `C-04`, `C-05`, `C-07`.
 **Tech:** `TS-LANG-01`, `TS-RT-02`, `TS-FW-03`.
 **Source dir:** `src/cli/`.
@@ -154,15 +154,15 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 ### `C-07` Quota Terminal Automation
 
 **Responsibility:** Run Devin's interactive `/usage` command per ready account, parse quota output, warn on unparseable output, and coordinate cache refresh for automatic selection.
-**Type:** In-process adapter plus tmux subprocesses.
+**Type:** In-process adapter plus node-pty subprocesses.
 **Owned data:** None; captures transient terminal output only.
 **Exposed interface:** Quota collection and parser functions.
-**Consumes:** `C-03`, `C-04` profile env construction, external `tmux`, external `devin`.
+**Consumes:** `C-03`, `C-04` profile env construction, external `node-pty`, external `devin`.
 **Tech:** `TS-LANG-01`, `TS-RT-02`, `TS-SEC-09`, `TS-INFRA-11`.
-**Source dir:** `src/core/quota.ts`, `src/core/quota-cache.ts`, `src/cli/commands/_shared.ts`, `src/cli/commands/quota.ts`, `scripts/ensure-tmux.js`.
-**Process boundary:** tmux server/session plus Devin subprocess inside the pane.
-**Scaling:** One short-lived tmux session per account during `dsw quota`.
-**Failure mode:** Per-account quota failures are reported without stopping the whole scan; tmux absence is surfaced by doctor/postinstall; unparseable success output emits one warning.
+**Source dir:** `src/core/quota.ts`, `src/core/quota-cache.ts`, `src/cli/commands/_shared.ts`, `src/cli/commands/quota.ts`, `node-pty optional dependency`.
+**Process boundary:** node-pty server/session plus Devin subprocess inside the pane.
+**Scaling:** One short-lived hidden PTY session per account during `dsw quota`.
+**Failure mode:** Per-account quota failures are reported without stopping the whole scan; node-pty absence is surfaced by doctor; unparseable success output emits one warning.
 **Related FRs:** `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`.
 **Related BR:** `BR-AUTH-01`, `BR-OPS-03`.
 
@@ -220,14 +220,14 @@ sequenceDiagram
     participant CLI as C-01 CLI
     participant Store as C-02 Store
     participant Quota as C-07 Quota
-    participant Tmux as tmux
+    participant Pty as node-pty
     participant Devin as C-04 Devin
     Operator->>CLI: dsw quota
     CLI->>Store: list accounts
     CLI->>Quota: check ready accounts
-    Quota->>Tmux: create detached session with profile env
+    Quota->>Pty: spawn hidden Devin PTY with profile env
     Quota->>Devin: send /usage
-    Tmux-->>Quota: captured pane output
+    Pty-->>Quota: streamed PTY output
     Quota-->>CLI: parsed quota rows
     CLI->>Store: refresh ok/exhausted quota cache entries
     CLI-->>Operator: quota table
@@ -256,14 +256,14 @@ flowchart TB
     subgraph Host["Local machine"]
         dsw[C-01 dsw Node process]
         devin[C-04 devin child process]
-        tmux[C-07 tmux quota session]
+        node-pty[C-07 node-pty quota session]
         store[(C-02 accounts.json + quota-cache.json)]
         profiles[(C-03 profile dirs)]
         shared[(C-05 shared Devin state)]
     end
     dsw --> devin
-    dsw --> tmux
-    tmux --> devin
+    dsw --> node-pty
+    node-pty --> devin
     dsw --> store
     dsw --> profiles
     profiles --> shared
@@ -274,7 +274,7 @@ flowchart TB
 | External | Direction | Protocol | Auth | Rate limit | Failure handling |
 |----------|-----------|----------|------|------------|------------------|
 | Devin CLI | outbound subprocess | local process/env/files | Devin-managed credentials | unknown | Propagate exit, mark login failures, doctor detection. |
-| tmux | outbound subprocess | local terminal session | profile env passed by `dsw` | n/a | Report per-account quota failure; doctor/postinstall detect missing binary. |
+| node-pty | outbound subprocess | local terminal session | profile env passed by `dsw` | n/a | Report per-account quota failure; doctor detect unavailable PTY support. |
 | npm | outbound subprocess | local command/network | user npm config | npm controlled | Stop update on non-zero exit. |
 | git | outbound subprocess | local command/network | user git config | remote controlled | Stop update on non-zero exit. |
 
@@ -284,9 +284,9 @@ flowchart TB
 |---------|----------|------------------|
 | AuthN/Z | Delegated to Devin CLI; `dsw` isolates env paths. | `C-04`, `C-05` |
 | Observability | Terminal stdout/stderr only. | `C-01` |
-| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`, `DSW_QUOTA_TIMEOUT_MS`, `DSW_QUOTA_STARTUP_DELAY_MS`, `DSW_INSTALL_TMUX`, `DSW_SKIP_TMUX_INSTALL`, XDG env during Devin subprocesses. | `C-03`, `C-05`, `C-07` |
+| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`, `DSW_QUOTA_TIMEOUT_MS`, `DSW_QUOTA_STARTUP_DELAY_MS`, XDG env during Devin subprocesses. | `C-03`, `C-05`, `C-07` |
 | Secrets | Credentials are written by Devin inside profile data dir; auth-like strings, API keys, and Bearer tokens are redacted in parser output. | `C-04`, `C-05` |
-| Healthchecks | `dsw doctor` checks paths, `devin --version`, and `tmux -V`. | `C-01`, `C-04`, `C-07` |
+| Healthchecks | `dsw doctor` checks paths, `devin --version`, and node-pty loader availability. | `C-01`, `C-04`, `C-07` |
 | Backpressure | Not applicable for a local synchronous CLI. | n/a |
 
 ## 10. Architectural Decisions (ADR-lite)
@@ -343,8 +343,8 @@ flowchart TB
 
 **Status:** Inferred
 **Date:** 2026-05-07
-**Context:** Operators need `dsw` and `dsw next` to avoid accounts that are already exhausted.
-**Decision:** Default `dsw` and `dsw next` read quota for all ready accounts first, using fresh cache entries when valid, then select the account with the highest known remaining quota, using least-recently-used as a tie-breaker.
+**Context:** Operators need `dsw` to avoid accounts that are already exhausted.
+**Decision:** Default `dsw` read quota for all ready accounts first, using fresh cache entries when valid, then select the account with the highest known remaining quota, using least-recently-used as a tie-breaker.
 **Consequences:**
 - Positive: Automatic runs avoid known exhausted accounts.
 - Negative: Stale cached quota can briefly overstate availability until the TTL expires.
@@ -371,22 +371,22 @@ flowchart TB
 **Related components:** `C-06`
 **Source:** `tests/integration/cli.spec.ts`, `scripts/fake-devin.ts:1`
 
-### `AD-06` Use tmux for quota reporting
+### `AD-06` Use node-pty for quota reporting
 
 **Status:** Adopted
 **Date:** 2026-05-07
 **Context:** `devin -p "/usage"` uses the default credential in observed behavior, while interactive `/usage` inside a profile session returns the desired account's quota.
-**Decision:** `dsw quota` creates short-lived tmux sessions with each account's profile environment, sends `/usage`, captures output, parses quota fields, and cleans up the session.
+**Decision:** `dsw quota` creates hidden node-pty sessions with each account's profile environment, sends `/usage`, captures output, parses quota fields, and cleans up the session.
 **Consequences:**
 - Positive: Quota checks use the managed account credentials instead of the default credential.
-- Negative: tmux becomes an operating-system dependency for quota reporting.
+- Negative: node-pty becomes an operating-system dependency for quota reporting.
 - Neutral: Per-account failures are visible in the quota table.
 **Alternatives considered:**
 - `devin -p "/usage"` - rejected because it did not go through `dsw` profile credentials.
 - Direct API integration - rejected because no documented API contract is present.
 **Related TS:** `TS-INFRA-11`, `TS-SEC-09`
 **Related components:** `C-01`, `C-07`
-**Source:** `src/core/quota.ts:1`, `scripts/ensure-tmux.js:1`
+**Source:** `src/core/quota.ts:1`, `node-pty optional dependency:1`
 
 ### `AD-07` Publish as scoped npm package
 
@@ -412,7 +412,7 @@ flowchart TB
 | Concurrent store writes can race. | Metadata loss or stale `lastUsedAt`. | Keep single-operator assumption; add file lock if needed. | PRD section 8 |
 | Devin output changes. | Auth metadata parsing breaks. | Redact and parse minimal fields; cover fake output; run doctor manually. | PRD section 8 |
 | Package metadata or CLI version output drifts. | Release metadata confusion. | Verify package/lock parity, `dsw --version`, and `npm pack --dry-run`. | PRD section 8 |
-| tmux unavailable. | `dsw quota` cannot automate interactive `/usage`. | Postinstall warning/opt-in install and doctor diagnostics. | PRD section 8 |
+| node-pty unavailable. | `dsw quota` cannot automate interactive `/usage`. | Postinstall warning/opt-in install and doctor diagnostics. | PRD section 8 |
 | Quota cache becomes stale. | Automatic selection may choose an account with less quota than expected. | TTL env override and selected-account cache invalidation. | PRD section 4.4 |
 
 ---
@@ -459,7 +459,7 @@ flowchart TB
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota terminal automation, tmux integration, and related ADR/traceability. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota terminal automation, node-pty integration, and related ADR/traceability. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield architecture extraction from current code. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run flow and ADR for quota-aware selection. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package distribution ADR, helper modules, and current env/package concerns. |

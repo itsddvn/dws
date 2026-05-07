@@ -5,6 +5,8 @@
 //   devin auth login         (writes a fake credential file under XDG_DATA_HOME)
 //   devin auth status        (prints "logged in" if the credential file exists)
 //   devin -p /usage          (prints a deterministic usage table)
+//   devin list --format json (prints a deterministic session list)
+//   devin -r <session-id>    (prints a deterministic resume banner)
 //   devin <anything else>    (echoes args + env summary)
 //
 // Behavior can be tweaked via env vars:
@@ -17,12 +19,13 @@
 //   DSW_FAKE_QUOTA_RESET_AT=May 7, 3:00 PM (UTC+7) -> override absolute reset time
 //   DSW_FAKE_QUOTA_BY_PROFILE_JSON={"profile-id":{"remaining":"0","used":"100"}} -> per-profile usage override
 //   DSW_FAKE_USAGE_HANG=1          -> keep /usage running until killed
+//   DSW_FAKE_SESSION_ID=abc123     -> session id shown by interactive/resume output
 //   DSW_FAKE_EMAIL=foo@bar   -> override the email used by auth status
 //   DSW_FAKE_NAME=Foo Bar     -> override the name used by auth status
 //
-// When invoked with no args the shim drops into a tiny interactive REPL
-// that responds to `/usage` and `/exit`, matching the way the tmux quota
-// path drives the real devin CLI.
+// When invoked with no args and DSW_FAKE_PTY=1 the shim drops into a tiny
+// interactive REPL that responds to `/usage` and `/exit`, matching the way
+// hidden PTY quota probes drive the real devin CLI.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,6 +81,9 @@ function usage(): number {
   const remaining = profileQuota.remaining ?? process.env.DSW_FAKE_QUOTA_REMAINING ?? '100';
   const resetsIn = profileQuota.resetsIn ?? process.env.DSW_FAKE_QUOTA_RESETS_IN ?? '5h 41m';
   const resetAt = profileQuota.resetAt ?? process.env.DSW_FAKE_QUOTA_RESET_AT ?? 'May 7, 3:00 PM (UTC+7)';
+  if (remaining === '0') {
+    console.log('Error: Agent error: Your daily usage quota has been exhausted.');
+  }
   console.log(`${tier} \u00b7 ${remaining}% remaining (resets in ${resetsIn})`);
   console.log('');
   console.log('Fetching quota...');
@@ -110,10 +116,14 @@ function currentProfileId(): string | null {
 
 function interactive(): void {
   console.log('fake-devin interactive prompt');
+  console.log(`Session ID: ${fakeSessionId()}`);
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk: string) => {
     if (chunk.includes('/usage')) {
       usage();
+    }
+    if (chunk.includes(':rotate')) {
+      console.log('fake-devin saw :rotate');
     }
     if (chunk.includes('/exit')) {
       process.exit(0);
@@ -122,12 +132,12 @@ function interactive(): void {
   setInterval(() => undefined, 60_000);
 }
 
+function fakeSessionId(): string {
+  return process.env.DSW_FAKE_SESSION_ID ?? `fake-session-${currentProfileId() ?? 'default'}`;
+}
+
 function main(): number | void {
-  // Only enter the interactive REPL when launched inside a tmux session
-  // (the path `dsw quota` uses). When `dsw default` / `dsw next` spawns
-  // devin without args, the test shim should exit quickly so vitest does
-  // not hang waiting on a non-existent prompt.
-  if (args.length === 0 && process.env.TMUX) return interactive();
+  if (args.length === 0 && process.env.DSW_FAKE_PTY === '1') return interactive();
   if (args.length === 0) {
     console.log('fake-devin invoked with no args');
     return 0;
@@ -138,9 +148,20 @@ function main(): number | void {
   }
   if (args[0] === 'auth' && args[1] === 'login') return authLogin();
   if (args[0] === 'auth' && args[1] === 'status') return authStatus();
+  if (args[0] === 'list' && args[1] === '--format' && args[2] === 'json') {
+    console.log(JSON.stringify([{ id: fakeSessionId(), status: 'active' }]));
+    return 0;
+  }
   if (args[0] === '-p' && args[1] === '/usage') return usage();
   if (args[0] === '--print' && args[1] === '/usage') return usage();
+  if (args[0] === '-r' && args[1]) {
+    console.log(`Resuming session ${args[1]}`);
+    console.log(`Session ID: ${args[1]}`);
+    console.log(`XDG_DATA_HOME=${process.env.XDG_DATA_HOME ?? ''}`);
+    return 0;
+  }
   console.log(`fake-devin invoked with: ${JSON.stringify(args)}`);
+  console.log(`Session ID: ${fakeSessionId()}`);
   console.log(`XDG_DATA_HOME=${process.env.XDG_DATA_HOME ?? ''}`);
   return 0;
 }

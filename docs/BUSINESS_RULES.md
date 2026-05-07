@@ -82,7 +82,7 @@ Business rules define durable product policy for local account switching, creden
 ### BR-DATA-04 Quota Cache Freshness
 
 **Statement:** Automatic selection MAY reuse fresh cached quota entries but MUST invalidate the selected account cache entry after a Devin run starts.
-**Rationale:** Cached quota avoids slow tmux checks while invalidation prevents immediately reusing quota that may have been consumed.
+**Rationale:** Cached quota avoids slow node-pty checks while invalidation prevents immediately reusing quota that may have been consumed.
 **Enforcement Point:** `mergeAccountQuotaWithCache`, `writeQuotaCache`, and `invalidateQuotaCacheEntry`.
 **Violation Behavior:** Stale quota may cause poor account selection; quota-cache tests or review should catch regressions.
 **Related:** `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-006`, PRD section 4.4.
@@ -105,10 +105,10 @@ Business rules define durable product policy for local account switching, creden
 
 ### BR-OPS-03 Quota Automation Dependency
 
-**Statement:** System SHALL surface tmux availability before quota checks are needed, SHALL clean up quota tmux sessions after use, and MUST NOT auto-install tmux during npm install unless `DSW_INSTALL_TMUX=1`.
+**Statement:** System SHALL surface node-pty availability before quota checks are needed, SHALL clean up quota hidden PTY sessions after use, and MUST NOT auto-install node-pty through OS package managers during npm install.
 **Rationale:** Quota reporting depends on interactive terminal automation and must not leave stale sessions behind.
-**Enforcement Point:** `scripts/ensure-tmux.js`, `dsw doctor`, and quota session cleanup.
-**Violation Behavior:** Missing tmux is reported by install/doctor; quota account failures are shown in the quota table.
+**Enforcement Point:** `node-pty optional dependency`, `dsw doctor`, and quota session cleanup.
+**Violation Behavior:** Missing node-pty is reported by doctor; quota account failures are shown in the quota table.
 **Related:** `FR-RUN-005`, `FR-OPS-001`, `FR-OPS-004`, `NFR-COMPAT-002`, PRD section 4.1.
 
 ### BR-OPS-04 Release Package Integrity
@@ -155,7 +155,7 @@ Business rules define durable product policy for local account switching, creden
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added quota automation and tmux dependency operating rules. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added quota automation and node-pty dependency operating rules. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial business rules extraction from current behavior. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run eligibility to include quota availability. |
-| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache freshness, redaction scope, tmux opt-in install, and package integrity rules. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache freshness, redaction scope, node-pty opt-in install, and package integrity rules. |

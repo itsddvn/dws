@@ -60,9 +60,10 @@ describe('dsw CLI', () => {
   it('prints help with all PRD commands', async () => {
     const result = await runCli(sandbox, ['--help']);
     expect(result.exitCode).toBe(0);
-    for (const command of ['list', 'add', 'remove', 'login', 'next', 'use', 'quota', 'update', 'doctor']) {
+    for (const command of ['list', 'add', 'remove', 'login', 'use', 'quota', 'update', 'doctor']) {
       expect(result.stdout).toContain(command);
     }
+    expect(result.stdout).not.toContain('dsw next');
   });
 
   it('prints the package version', async () => {
@@ -111,7 +112,7 @@ describe('dsw CLI', () => {
     expect(result.stderr).toMatch(/--yes/);
   });
 
-  it('default and next use max remaining quota, with least-recently-used as a tie breaker', async () => {
+  it('default uses max remaining quota, with least-recently-used as a tie breaker', async () => {
     await runCli(sandbox, ['add', 'one']);
     await runCli(sandbox, ['add', 'two']);
 
@@ -128,7 +129,7 @@ describe('dsw CLI', () => {
     expect(first.stderr).toMatch(/Selected two/);
     expect(first.stdout).toMatch(/some.*forwarded.*args/);
 
-    const second = await runCli(sandbox, ['next']);
+    const second = await runCli(sandbox, []);
     expect(second.exitCode).toBe(0);
     expect(second.stderr).toMatch(/Selected one/);
   });
@@ -157,40 +158,13 @@ describe('dsw CLI', () => {
     expect(result.stderr).toContain('quota remaining: 80%');
   });
 
-  it('next checks quota and picks the account with the most remaining quota', async () => {
-    await runCli(sandbox, ['add', 'one']);
-    await runCli(sandbox, ['add', 'two']);
-    await runCli(sandbox, ['add', 'three']);
-
-    const store = new AccountStore(sandbox.paths);
-    store.reload();
-    const one = store.list().find((account) => account.name === 'one')!;
-    const two = store.list().find((account) => account.name === 'two')!;
-    const three = store.list().find((account) => account.name === 'three')!;
-    store.update(one.id, (account) => ({ ...account, lastUsedAt: 10 }));
-    store.update(two.id, (account) => ({ ...account, lastUsedAt: 30 }));
-    store.update(three.id, (account) => ({ ...account, lastUsedAt: 20 }));
-
-    const result = await runCli(sandbox, ['next', '-p', 'hello'], {
-      DSW_FAKE_QUOTA_BY_PROFILE_JSON: JSON.stringify({
-        [one.id]: { used: '30', remaining: '70' },
-        [two.id]: { used: '0', remaining: '100' },
-        [three.id]: { used: '100', remaining: '0' }
-      })
-    });
-
-    expect(result.exitCode, `stdout=${result.stdout} stderr=${result.stderr}`).toBe(0);
-    expect(result.stderr).toMatch(/Selected two/);
-    expect(result.stderr).toContain('quota remaining: 100%');
-  });
-
-  it('next forwards devin options', async () => {
+  it('removed next command prints an error and does not invoke Devin', async () => {
     await runCli(sandbox, ['add', 'one']);
 
     const result = await runCli(sandbox, ['next', '-p', 'hello']);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toMatch(/Selected one/);
-    expect(result.stdout).toMatch(/-p.*hello/);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('`dsw next` has been removed');
+    expect(result.stdout).not.toContain('fake-devin invoked');
   });
 
   it('use runs a specific account and forwards devin options', async () => {
@@ -207,6 +181,23 @@ describe('dsw CLI', () => {
     store.reload();
     const two = store.list().find((account) => account.name === 'two')!;
     expect(two.lastUsedAt).toEqual(expect.any(Number));
+  });
+
+  it('use can forward a resume session id to Devin under the selected account', async () => {
+    await runCli(sandbox, ['add', 'one']);
+    await runCli(sandbox, ['add', 'two']);
+
+    const result = await runCli(sandbox, ['use', 'two', '-r', 'session-abc123']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toMatch(/Selected two/);
+    expect(result.stdout).toContain('Resuming session session-abc123');
+    expect(result.stdout).toContain('Session ID: session-abc123');
+
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const two = store.list().find((account) => account.name === 'two')!;
+    expect(result.stdout).toContain(path.join(sandbox.dataHome, 'profiles', two.id, 'data'));
   });
 
   it('quota checks every ready account and skips accounts needing login', async () => {
@@ -251,7 +242,7 @@ describe('dsw CLI', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('devin-switcher doctor');
     expect(result.stdout).toMatch(/devin: devin 0\.0\.0-fake/);
-    expect(result.stdout).toMatch(/tmux: tmux /);
+    expect(result.stdout).toMatch(/node-pty: available/);
   });
 
   it('login marks an account as needs-login when devin auth login fails', async () => {

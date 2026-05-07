@@ -47,7 +47,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 | `TC-AUTH-001` | Add unnamed account infers name | integration | P1 | `FR-AUTH-003`, `UC-AUTH-02` | Implemented |
 | `TC-AUTH-002` | Login failure marks needs-login | integration | P0 | `FR-AUTH-002`, `UC-AUTH-03`, `NFR-REL-002` | Implemented |
 | `TC-RUN-001` | Quota-aware default selector behavior | unit | P0 | `FR-RUN-001`, `UC-RUN-01` | Implemented |
-| `TC-RUN-002` | Quota-aware next selector behavior | integration | P0 | `FR-RUN-002`, `UC-RUN-02` | Implemented |
+| `TC-RUN-002` | Quota-aware removed-command guard behavior | integration | P0 | `FR-RUN-002`, `UC-RUN-02` | Implemented |
 | `TC-RUN-003` | CLI forwards Devin args | integration | P0 | `FR-RUN-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
 | `TC-RUN-004` | Specific account command forwards Devin args | integration | P0 | `FR-RUN-004`, `UC-RUN-03` | Implemented |
 | `TC-RUN-005` | Quota cache persistence, TTL, bypass, and invalidation | unit | P0 | `FR-RUN-006`, `NFR-REL-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
@@ -55,7 +55,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 | `TC-PROF-002` | Profile runtime symlink and config sync | unit | P0 | `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` | Implemented |
 | `TC-PROF-003` | Profile org id reader | unit | P1 | `FR-PROF-005` | Implemented |
 | `TC-OPS-001` | Update dry-run prints local checkout steps | integration | P1 | `FR-OPS-002`, `UC-OPS-02` | Implemented |
-| `TC-OPS-002` | Doctor reports paths, Devin version, and tmux version | integration | P1 | `FR-OPS-001`, `UC-OPS-01`, `NFR-OBS-001` | Implemented |
+| `TC-OPS-002` | Doctor reports paths, Devin version, and node-pty availability | integration | P1 | `FR-OPS-001`, `UC-OPS-01`, `NFR-OBS-001` | Implemented |
 | `TC-OPS-003` | Quota checks ready accounts and skips needs-login accounts | integration | P0 | `FR-RUN-005`, `FR-OPS-004`, `UC-OPS-04`, `NFR-COMPAT-002` | Implemented |
 | `TC-OPS-004` | Process capture helper handles output, timeout, and spawn failure | unit | P1 | `NFR-USE-001`, `NFR-OBS-001` | Implemented |
 | `TC-SEC-001` | Redaction covers auth-like secrets | unit | P0 | `NFR-SEC-002` | Implemented |
@@ -80,7 +80,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Capture stdout and exit code.
 3. Assert exit code 0 and commands are present.
 4. Run version output and compare to package version.
-**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `next`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.1`.
+**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.1`.
 **Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Tracks the supported command surface.
 
@@ -189,35 +189,34 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Implementation:** `tests/unit/runner-pick.spec.ts:20`.
 **Notes:** Plain LRU behavior remains covered as the fallback path.
 
-#### `TC-RUN-002` Quota-aware next selector behavior
+#### `TC-RUN-002` Removed command guard behavior
 
 **Type:** integration
 **Priority:** P0
 **Related:** `FR-RUN-002`, `UC-RUN-02`
-**Component under test:** `C-01`, `C-04`, `C-07`
-**Preconditions:** In-memory accounts.
-**Test Data:** Ready accounts with different remaining quota values.
+**Component under test:** `C-01`
+**Preconditions:** Fake Devin shim active.
+**Test Data:** `dsw next -p hello`.
 **Steps:**
-1. Add multiple ready accounts.
-2. Run `dsw next -p hello` with per-profile fake quota values.
-3. Capture selected account and forwarded args.
-**Expected Result:** Account with maximum remaining quota is selected and forwarded args reach Devin.
+1. Add a ready account.
+2. Run `dsw next -p hello`.
+3. Capture stderr and stdout.
+**Expected Result:** CLI exits non-zero with a removal error and fake Devin is not invoked.
 **Implementation:** `tests/integration/cli.spec.ts`.
-**Notes:** `dsw next` uses the same maximum-remaining quota policy as default execution.
+**Notes:** The guard prevents a removed command token from becoming prompt text.
 
 #### `TC-RUN-003` CLI forwards Devin args
 
 **Type:** integration
 **Priority:** P0
-**Related:** `FR-RUN-003`, `UC-RUN-01`, `UC-RUN-02`
+**Related:** `FR-RUN-003`, `UC-RUN-01`
 **Component under test:** `C-01`, `C-04`, `C-05`
 **Preconditions:** Ready accounts exist.
-**Test Data:** `some forwarded args`, `next -p hello`.
+**Test Data:** `some forwarded args`.
 **Steps:**
 1. Add accounts.
 2. Set timestamps in store.
 3. Run default command with unknown args.
-4. Run `dsw next -p hello`.
 **Expected Result:** Selected account is printed and fake Devin receives forwarded args.
 **Implementation:** `tests/integration/cli.spec.ts`, `tests/integration/cli.spec.ts`.
 **Notes:** Also validates profile-env path wiring indirectly.
@@ -254,7 +253,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 5. Invalidate one account cache entry.
 **Expected Result:** Fresh entries are reused, stale entries are rechecked, corrupt cache is ignored, and invalidation removes only the selected account.
 **Implementation:** `tests/unit/quota-cache.spec.ts:39`.
-**Notes:** Covers local quota cache policy for default and `next`.
+**Notes:** Covers local quota cache policy for default execution.
 
 ### 6.5 PROF
 
@@ -324,7 +323,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Does not mutate repo.
 
-#### `TC-OPS-002` Doctor reports paths, Devin version, and tmux version
+#### `TC-OPS-002` Doctor reports paths, Devin version, and node-pty availability
 
 **Type:** integration
 **Priority:** P1
@@ -335,9 +334,9 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Steps:**
 1. Run `dsw doctor`.
 2. Capture stdout and exit code.
-**Expected Result:** Output includes doctor heading, fake Devin version, and tmux version.
+**Expected Result:** Output includes doctor heading, fake Devin version, and node-pty availability.
 **Implementation:** `tests/integration/cli.spec.ts`.
-**Notes:** Missing real Devin or tmux path should produce warning in real use.
+**Notes:** Missing real Devin or node-pty path should produce warning in real use.
 
 #### `TC-OPS-003` Quota checks ready accounts and skips needs-login accounts
 
@@ -345,7 +344,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Priority:** P0
 **Related:** `FR-RUN-005`, `FR-OPS-004`, `UC-OPS-04`, `NFR-COMPAT-002`
 **Component under test:** `C-01`, `C-02`, `C-07`
-**Preconditions:** Fake Devin shim active and tmux available.
+**Preconditions:** Fake Devin shim active and node-pty available.
 **Test Data:** two accounts, one marked needs-login, fake usage values.
 **Steps:**
 1. Add accounts `one` and `two`.
@@ -588,7 +587,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added direct account, quota reporting, tmux diagnostics, and quota parser coverage. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added direct account, quota reporting, node-pty diagnostics, and quota parser coverage. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial test-case catalog extracted from Vitest suite. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection unit and integration coverage. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, helper utility, atomic write, exec, and expanded redaction coverage. |

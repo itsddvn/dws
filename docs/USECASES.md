@@ -27,7 +27,6 @@
 | `UC-AUTH-03` | Re-login account | Local operator | `dsw login work` | `FR-AUTH-002` |
 | `UC-ACC-02` | Remove account | Local operator | `dsw remove work --yes` | `FR-ACC-004` |
 | `UC-RUN-01` | Run Devin by quota-aware selection | Local operator | `dsw -p "fix bug"` | `FR-RUN-001` |
-| `UC-RUN-02` | Run next account by maximum quota | Local operator | `dsw next -p hello` | `FR-RUN-002` |
 | `UC-RUN-03` | Run specific account | Local operator | `dsw use work -p hello` | `FR-RUN-004` |
 | `UC-OPS-04` | Check managed account quota | Local operator | `dsw quota` | `FR-RUN-005` |
 | `UC-OPS-01` | Diagnose install | Local operator | `dsw doctor` | `FR-OPS-001` |
@@ -163,25 +162,14 @@
 - **Related BR:** `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`, `BR-DATA-04`.
 - **Route:** n/a.
 
-### UC-RUN-02 Run next account by maximum quota
+### UC-RUN-02 Removed next command guard
 
-- **Actor:** Local operator.
-- **Scope:** `dsw` CLI plus Devin CLI.
-- **Level:** user-goal.
-- **Preconditions:** At least one account exists and is ready.
+- **Primary Actor:** Local operator.
 - **Trigger:** Operator runs `dsw next [args...]`.
 - **Main Success Scenario:**
-  1. CLI loads accounts.
-  2. CLI reads fresh cached quota entries and checks stale/missing quota for ready accounts unless `DSW_SKIP_QUOTA=1`.
-  3. CLI selects the account with the highest known remaining quota.
-  4. CLI runs Devin under the selected account profile.
-- **Extensions:**
-  - 2a. Account needs login -> CLI skips it before quota checks.
-  - 3a. All ready accounts are exhausted -> CLI exits with no-eligible error.
-- **Postconditions:** Selected account has updated `lastUsedAt`.
-- **Related SRS:** `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-006`.
-- **Related BR:** `BR-AUTH-01`, `BR-DATA-04`.
-- **Route:** n/a.
+  1. CLI recognizes `next` as a removed command token.
+  2. CLI prints a removal error that tells the operator to run `dsw` instead.
+  3. CLI exits non-zero without invoking Devin.
 
 ### UC-RUN-03 Run specific account
 
@@ -207,21 +195,21 @@
 ### UC-OPS-04 Check managed account quota
 
 - **Actor:** Local operator.
-- **Scope:** `dsw` CLI, tmux, and Devin CLI.
+- **Scope:** `dsw` CLI, node-pty, and Devin CLI.
 - **Level:** user-goal.
-- **Preconditions:** `tmux` and `devin` are on `PATH`; at least one account exists.
+- **Preconditions:** `node-pty` and `devin` are on `PATH`; at least one account exists.
 - **Trigger:** Operator runs `dsw quota`.
 - **Main Success Scenario:**
   1. CLI loads all accounts.
   2. CLI skips accounts marked as needing login.
-  3. CLI starts a short-lived tmux session for each ready account with that account's profile env.
+  3. CLI starts a short-lived hidden PTY session for each ready account with that account's profile env.
   4. CLI sends `/usage`, captures terminal output, and destroys the session.
   5. CLI parses tier, used percentage, remaining percentage, and reset timing when present.
   6. CLI refreshes ok/exhausted quota cache entries.
   7. CLI prints a quota table for all managed accounts.
 - **Extensions:**
   - 2a. Account needs login -> row status is `needs login`.
-  - 3a. tmux or Devin fails for one account -> row status is `error`; scan continues.
+  - 3a. node-pty or Devin fails for one account -> row status is `error`; scan continues.
 - **Postconditions:** Account store is unchanged; quota cache may be refreshed.
 - **Related SRS:** `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`, `NFR-COMPAT-002`.
 - **Related BR:** `BR-AUTH-01`, `BR-DATA-04`, `BR-OPS-03`.
@@ -238,11 +226,11 @@
   1. CLI resolves app paths.
   2. CLI creates data/profile roots if needed.
   3. CLI runs `devin --version`.
-  4. CLI runs `tmux -V`.
-  5. CLI prints paths, Devin status, tmux status, and account count.
+  4. CLI checks node-pty availability through the shared PTY loader.
+  5. CLI prints paths, Devin status, node-pty status, and account count.
 - **Extensions:**
   - 3a. Devin missing or errors -> CLI prints warning and exits non-zero.
-  - 4a. tmux missing or errors -> CLI prints warning and exits non-zero.
+  - 4a. node-pty missing or errors -> CLI prints warning and exits non-zero.
 - **Postconditions:** Diagnostic output is available to operator.
 - **Related SRS:** `FR-OPS-001`, `NFR-OBS-001`.
 - **Related BR:** `BR-OPS-01`.
@@ -349,7 +337,7 @@ All selected use cases are detailed in section 3.
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added direct-account execution, quota reporting, and tmux-aware diagnostics use cases. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added direct-account execution, quota reporting, and node-pty diagnostics use cases. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial use-case extraction from CLI commands and tests. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run use cases for quota-aware selection. |
-| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, and tmux opt-in installer use-case details. |
+| 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, and  use-case details. |

@@ -1,7 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseQuotaSummary, readQuotaForAccount } from '../../src/core/quota';
 import type { Account } from '../../src/core/store';
 import type { RunResult } from '../../src/util/exec';
+import { createSandbox } from '../helpers/sandbox';
 
 function makeAccount(): Account {
   return {
@@ -81,5 +84,53 @@ Quota resets May 7, 3:00 PM (UTC+7).
 
     expect(quota.status).toBe('exhausted');
     expect(quota.summary.remainingPercent).toBe('0%');
+  });
+
+  it('uses --print fallback when a test run implementation is injected', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const quota = await readQuotaForAccount(makeAccount(), {
+      transport: 'pty',
+      startupDelayMs: 0,
+      timeoutMs: 1,
+      runImpl: async (command, args) => {
+        calls.push({ command, args });
+        if (command === 'devin' && args[0] === '--print') {
+          return makeRunResult(`
+Trial · 88% remaining (resets in 4h 20m)
+
+Quota used: 12% (remaining: 88%)
+Quota resets May 7, 3:00 PM (UTC+7).
+`);
+        }
+        throw new Error(`unexpected call: ${command} ${args.join(' ')}`);
+      }
+    });
+
+    expect(quota.status).toBe('ok');
+    expect(quota.summary.remainingPercent).toBe('88%');
+    expect(calls).toEqual([{ command: 'devin', args: ['--print', '/usage'] }]);
+  });
+
+  it('can skip profile runtime preparation for rotate-confirm validation', async () => {
+    const sandbox = createSandbox();
+    try {
+      const sharedConfig = path.join(sandbox.configHome, 'devin', 'config.json');
+      fs.mkdirSync(path.dirname(sharedConfig), { recursive: true });
+      fs.writeFileSync(sharedConfig, JSON.stringify({ theme: 'dark' }));
+
+      const quota = await readQuotaForAccount(makeAccount(), {
+        appPaths: sandbox.paths,
+        baseEnv: sandbox.env,
+        prepareRuntime: false,
+        runImpl: async () => makeRunResult('Trial · 100% remaining')
+      });
+
+      const profileConfig = path.join(sandbox.paths.profilesDir, 'account-id', 'config', 'devin', 'config.json');
+      expect(quota.status).toBe('ok');
+      expect(quota.summary.remainingPercent).toBe('100%');
+      expect(fs.existsSync(profileConfig)).toBe(false);
+    } finally {
+      sandbox.cleanup();
+    }
   });
 });

@@ -148,19 +148,19 @@ This registry lists external documents, APIs, specifications, and resources that
 | **Auth / Access** | Public |
 | **Notes / Gotchas** | The spec is a convention; actual behavior depends on Devin CLI honoring it. |
 
-#### `EXT-STD-003` - tmux
+#### `EXT-STD-003` - node-pty
 
 | Field | Value |
 |-------|-------|
-| **Provider** | tmux project |
-| **URL** | https://github.com/tmux/tmux/wiki |
-| **Version / Revision** | local `tmux` CLI; verify with `tmux -V` |
+| **Provider** | node-pty project |
+| **URL** | https://github.com/node-pty/node-pty/wiki |
+| **Version / Revision** | optional npm package; verify through `dsw doctor` |
 | **Last Verified** | 2026-05-07 |
 | **Type** | STD |
-| **Why We Depend** | `dsw quota` uses detached tmux sessions to drive Devin's interactive `/usage` command under each profile environment. |
+| **Why We Depend** | `dsw quota` uses detached hidden PTY sessions to drive Devin's interactive `/usage` command under each profile environment. |
 | **Cross-refs** | `TS-INFRA-11`, `C-07`, `FR-RUN-005`, `FR-OPS-004`, `NFR-COMPAT-002` |
 | **Auth / Access** | Public |
-| **Notes / Gotchas** | Installation is OS-managed; `postinstall` warns by default, auto-installs only with `DSW_INSTALL_TMUX=1`, and `dsw doctor` remains the diagnostic source. |
+| **Notes / Gotchas** | Installation is npm-managed as an optional dependency; `dsw doctor` remains the diagnostic source. |
 
 ### 3.4 Services and Package Resources (`EXT-SVC`)
 
@@ -229,6 +229,6 @@ This registry lists external documents, APIs, specifications, and resources that
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added interactive Devin usage and tmux dependency references for quota reporting. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added interactive Devin usage and node-pty dependency references for quota reporting. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial external-resource registry for CLI dependencies. |
-| 1.2.0 | 2026-05-07 | itsddvn | Updated npm package and tmux opt-in installer references for public scoped distribution. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated npm package and node-pty opt-in installer references for public scoped distribution. |

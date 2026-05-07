@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { buildProfileEnv } from './profile-env';
 import { persistProfileRuntime } from './profile-runtime';
+import { getPtyAvailability, runDevinPtyForAccount } from './pty-runner';
 import type { AccountQuota } from './quota';
 import type { Account, AccountStore } from './store';
 
@@ -9,11 +10,25 @@ export interface RunDevinOptions {
   args: string[];
   appPaths?: AppPaths;
   baseEnv?: NodeJS.ProcessEnv;
+  autoRotate?: boolean;
 }
 
-export function runDevinForAccount(store: AccountStore, account: Account, options: RunDevinOptions): Promise<number | null> {
+export async function runDevinForAccount(store: AccountStore, account: Account, options: RunDevinOptions): Promise<number | null> {
   const appPaths = options.appPaths ?? resolveAppPaths();
   const baseEnv = options.baseEnv ?? process.env;
+
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    const pty = await getPtyAvailability(baseEnv);
+    if (pty.available) {
+      return await runDevinPtyForAccount(store, account, {
+        args: options.args,
+        appPaths,
+        baseEnv,
+        autoRotate: options.autoRotate ?? false
+      });
+    }
+    process.stderr.write(`dsw: warning: PTY unavailable (${pty.reason ?? 'unknown'}); using legacy runner without auto-rotate.\n`);
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn('devin', options.args, {

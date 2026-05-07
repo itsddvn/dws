@@ -5,8 +5,8 @@ rotates between them so no single account gets exhausted.
 
 ## Install
 
-Requires Node.js 20+, the `devin` binary on your `PATH`, and `tmux` for
-`dsw quota`.
+Requires Node.js 20+, the `devin` binary on your `PATH`, and optional
+`node-pty` support for hidden interactive quota checks and auto-rotate.
 
 ### Option 1 — install from npm (recommended)
 
@@ -33,20 +33,11 @@ npm link        # exposes the `dsw` binary on your PATH
 `npm install`, and `npm run build` for you, so subsequent updates are
 just `dsw update`.
 
-### tmux
-
-By default `npm install` only **warns** when tmux is missing. To opt in to
-auto-installing it from `npm install` set `DSW_INSTALL_TMUX=1`; on macOS it
-uses Homebrew, on Linux it falls back to the available package manager with
-`sudo` when needed. Set `DSW_SKIP_TMUX_INSTALL=1` to silence the warning
-entirely.
-
 ## Commands
 
 | Command                         | What it does                                                                                  |
 | ------------------------------- | --------------------------------------------------------------------------------------------- |
 | `dsw [args...]`                 | Checks quota, picks the best available account, and runs `devin` under it. Forwards args.     |
-| `dsw next [args...]`            | Checks quota and picks the ready account with maximum remaining quota.                        |
 | `dsw use <name> [args...]`      | Runs `devin` under a specific ready account by name.                                         |
 | `dsw list` / `dsw ls`           | Lists configured accounts with status, plan, and last-used time.                              |
 | `dsw quota`                     | Runs Devin usage reporting under each ready account and summarizes remaining quota.           |
@@ -66,18 +57,17 @@ least-recently-used as the tie-breaker. It skips accounts that need login and
 accounts with exhausted or zero remaining quota when another usable account is
 available, then updates `lastUsedAt` after selection.
 
-Use `dsw next` when you want to force a fresh quota-aware pick. It checks every
-ready account and picks the account with maximum remaining quota, the same as
-default execution.
+`dsw next` has been removed. The token is reserved and prints a clear removal
+error instead of being forwarded to Devin.
 
 Use `dsw use <name>` when you want to bypass rotation and run a specific
 account directly. Extra arguments are forwarded to Devin, so
 `dsw use work -p "fix bug"` runs `devin -p "fix bug"` with the `work` profile.
 
-Use `dsw quota` to check all managed accounts. It runs `devin -p /usage` inside
-each account profile, parses the tier, used percentage, remaining percentage,
-and reset time when present, skips accounts marked as needing login, and reports
-per-account failures without stopping the whole scan.
+Use `dsw quota` to check all managed accounts. It starts a hidden Devin PTY for
+each account profile, sends `/usage`, parses the tier, used percentage,
+remaining percentage, and reset time when present, skips accounts marked as
+needing login, and reports per-account failures without stopping the whole scan.
 
 When you run `dsw add` without a name, `dsw` opens `devin auth login`, then
 reads `devin auth status` and names the account from the reported Name field,
@@ -111,17 +101,18 @@ you can inspect or back up).
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `DSW_DATA_HOME`              | Override the data directory root (defaults to `~/.dsw`).                                    |
 | `DSW_CONFIG_HOME`            | Override the config directory root (defaults to the same path as `DSW_DATA_HOME`).          |
-| `DSW_SKIP_QUOTA=1`           | Make `dsw` and `dsw next` skip the quota check and pick by least-recently-used instead.     |
+| `DSW_SKIP_QUOTA=1`           | Make `dsw` skip the quota check and pick by least-recently-used instead.                   |
 | `DSW_QUOTA_CACHE_TTL_MS`     | Override the quota cache TTL (default 5 minutes). Set `0` to always re-fetch.               |
 | `DSW_QUOTA_TIMEOUT_MS`       | Override the per-account quota timeout (default 15s).                                       |
 | `DSW_QUOTA_STARTUP_DELAY_MS` | Override how long `dsw quota` waits for the Devin REPL to settle (default 4s).              |
-| `DSW_INSTALL_TMUX=1`         | Opt in to having the `npm install` postinstall step install tmux for you (uses `sudo`).     |
-| `DSW_SKIP_TMUX_INSTALL=1`    | Suppress the tmux warning during `npm install`.                                             |
+| `DSW_DISABLE_PTY=1`          | Force the legacy subprocess runner and disable interactive auto-rotate.                    |
 
-`dsw` and `dsw next` cache quota results under
+`dsw` caches quota results under
 `~/.dsw/quota-cache.json` so subsequent invocations within the TTL window
-skip the slow tmux check entirely. `dsw quota` always re-fetches and
-refreshes the cache.
+skip a fresh hidden PTY probe. `dsw quota` always re-fetches and refreshes the
+cache. If the PTY probe is unavailable, default `dsw` warns and falls back to
+least-recently-used selection; `dsw quota` exits non-zero because an explicit
+quota report should not use stale data.
 
 ## Development
 

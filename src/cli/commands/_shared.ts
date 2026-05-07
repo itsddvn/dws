@@ -20,9 +20,8 @@ export interface QuotaPickRunOptions {
 }
 
 /**
- * Shared implementation for `dsw` (default) and `dsw next`: check quota
- * across all ready accounts, pick the one with the most remaining quota,
- * run devin under it.
+ * Default `dsw` implementation: check quota across all ready accounts, pick
+ * the one with the most remaining quota, run devin under it.
  */
 export async function runWithQuotaPick(options: QuotaPickRunOptions): Promise<void> {
   const env = options.baseEnv ?? process.env;
@@ -44,6 +43,9 @@ export async function runWithQuotaPick(options: QuotaPickRunOptions): Promise<vo
     const cache = readQuotaCache();
     const { fresh, stale } = mergeAccountQuotaWithCache(ready, cache, env);
     const refreshed = await Promise.all(stale.map((account) => readQuotaForAccount(account, { baseEnv: env })));
+    if (refreshed.some((result) => result.status === 'error' && /pty unavailable/i.test(result.rawRedacted))) {
+      process.stderr.write('dsw: warning: PTY quota probe unavailable; falling back to least-recently-used selection.\n');
+    }
     quotas = [...fresh, ...refreshed];
     writeQuotaCache(cache, refreshed);
   }
@@ -58,7 +60,7 @@ export async function runWithQuotaPick(options: QuotaPickRunOptions): Promise<vo
   const quota = quotas.find((result) => result.account.id === picked.id);
   const remaining = quota?.summary.remainingPercent ? `, quota remaining: ${quota.summary.remainingPercent}` : '';
   process.stderr.write(`Selected ${picked.name} (last used: ${formatTimestamp(picked.lastUsedAt)}${remaining})\n`);
-  const exitCode = await runDevinForAccount(store, picked, { args: options.args });
+  const exitCode = await runDevinForAccount(store, picked, { args: options.args, autoRotate: true });
   // The selected account just consumed quota; drop its cache entry so the
   // next `dsw` invocation re-checks instead of trusting a stale value.
   invalidateQuotaCacheEntry(picked.id);

@@ -1,7 +1,8 @@
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { runCapture, type RunOptions } from '../util/exec';
 import { redactText } from '../util/redact';
-import { buildProfileEnv } from './profile-env';
+import { buildProfileEnv, buildProfileEnvWithoutRuntime } from './profile-env';
+import { probeQuotaViaPty } from './quota-pty-probe';
 import type { Account } from './store';
 
 export interface QuotaSummary {
@@ -26,6 +27,8 @@ export interface ReadQuotaOptions {
   runImpl?: typeof runCapture;
   timeoutMs?: number;
   startupDelayMs?: number;
+  transport?: 'auto' | 'pty' | 'print';
+  prepareRuntime?: boolean;
 }
 
 export async function readQuotaForAccount(account: Account, options: ReadQuotaOptions = {}): Promise<AccountQuota> {
@@ -44,13 +47,23 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
   const baseEnv = options.baseEnv ?? process.env;
   const timeoutMs = options.timeoutMs ?? numberFromEnv(baseEnv.DSW_QUOTA_TIMEOUT_MS, 15_000);
   const startupDelayMs = options.startupDelayMs ?? numberFromEnv(baseEnv.DSW_QUOTA_STARTUP_DELAY_MS, 4_000);
+  const transport = options.transport ?? 'auto';
+  const env = buildQuotaEnv(account.id, appPaths, baseEnv, options.prepareRuntime ?? true);
 
-  if (!options.runImpl && (await isTmuxAvailable(runImpl, options.baseEnv))) {
-    return await readQuotaViaTmux(account, appPaths, baseEnv, timeoutMs, startupDelayMs, runImpl);
+  if (transport === 'auto' || transport === 'pty') {
+    if (!options.runImpl) {
+      const result = await probeQuotaViaPty(account, {
+        env,
+        baseEnv,
+        timeoutMs,
+        startupDelayMs
+      });
+      return quotaResult(account, result.raw, result.timedOut, result.exitCode);
+    }
   }
 
   const runOptions: RunOptions = {
-    env: buildProfileEnv(account.id, appPaths, baseEnv),
+    env,
     timeoutMs
   };
 
@@ -72,56 +85,15 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
   };
 }
 
-async function readQuotaViaTmux(
-  account: Account,
+function buildQuotaEnv(
+  profileId: string,
   appPaths: AppPaths,
   baseEnv: NodeJS.ProcessEnv,
-  timeoutMs: number,
-  startupDelayMs: number,
-  runImpl: typeof runCapture
-): Promise<AccountQuota> {
-  const env = buildProfileEnv(account.id, appPaths, baseEnv);
-  const session = `dsw-quota-${process.pid}-${Date.now()}-${account.id.slice(0, 8)}`;
-  let raw = '';
-  let exitCode: number | null = null;
-  let timedOut = false;
-
-  try {
-    const tmuxEnv = [
-      `XDG_DATA_HOME=${env.XDG_DATA_HOME ?? ''}`,
-      `XDG_CONFIG_HOME=${env.XDG_CONFIG_HOME ?? ''}`,
-      'NO_COLOR=1',
-      'TERM=xterm-256color',
-      `PATH=${baseEnv.PATH ?? process.env.PATH ?? ''}`,
-      ...passthroughEnv(baseEnv)
-    ];
-    const newSessionArgs = ['new-session', '-d', '-s', session, '-x', '120', '-y', '40', '-c', process.cwd()];
-    for (const item of tmuxEnv) {
-      newSessionArgs.push('-e', item);
-    }
-    newSessionArgs.push('devin');
-    const start = await runImpl('tmux', newSessionArgs, { env: baseEnv, timeoutMs: 5_000 });
-    exitCode = start.exitCode;
-    if (start.exitCode !== 0) {
-      raw = `${start.stdout}\n${start.stderr}`;
-      return quotaResult(account, raw, false, start.exitCode);
-    }
-
-    await delay(startupDelayMs);
-    await runImpl('tmux', ['send-keys', '-t', session, '/usage', 'Enter'], { env: baseEnv, timeoutMs: 5_000 });
-
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const capture = await runImpl('tmux', ['capture-pane', '-t', session, '-p', '-S', '-200'], { env: baseEnv, timeoutMs: 5_000 });
-      raw = `${capture.stdout}\n${capture.stderr}`;
-      if (hasQuotaSignal(raw)) return quotaResult(account, raw, false, 0);
-      await delay(500);
-    }
-    timedOut = true;
-    return quotaResult(account, raw, timedOut, exitCode);
-  } finally {
-    await runImpl('tmux', ['kill-session', '-t', session], { env: baseEnv, timeoutMs: 5_000 }).catch(() => undefined);
-  }
+  prepareRuntime: boolean
+): NodeJS.ProcessEnv {
+  return prepareRuntime
+    ? buildProfileEnv(profileId, appPaths, baseEnv)
+    : buildProfileEnvWithoutRuntime(profileId, appPaths, baseEnv);
 }
 
 function quotaResult(account: Account, raw: string, timedOut: boolean, exitCode: number | null): AccountQuota {
@@ -158,38 +130,6 @@ function warnOnUnparseable(
       `The Devin /usage wording may have changed. ` +
       `Run \`dsw quota\` to inspect the redacted raw output.\n`
   );
-}
-
-async function isTmuxAvailable(runImpl: typeof runCapture, baseEnv: NodeJS.ProcessEnv | undefined): Promise<boolean> {
-  try {
-    const result = await runImpl('tmux', ['-V'], { env: baseEnv ?? process.env, timeoutMs: 2_000 });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-}
-
-function hasQuotaSignal(output: string): boolean {
-  return /Quota used:|Quota resets|quota has been exhausted|quota exhausted|not logged in/i.test(output);
-}
-
-/**
- * Forward `DSW_FAKE_*` test hooks into the tmux session so the integration
- * test shim can observe the same environment as a normal `dsw` run. No
- * production-only behavior should depend on these vars.
- */
-function passthroughEnv(baseEnv: NodeJS.ProcessEnv): string[] {
-  const result: string[] = [];
-  for (const [key, value] of Object.entries(baseEnv)) {
-    if (!key.startsWith('DSW_FAKE_')) continue;
-    if (value === undefined) continue;
-    result.push(`${key}=${value}`);
-  }
-  return result;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function numberFromEnv(value: string | undefined, fallback: number): number {

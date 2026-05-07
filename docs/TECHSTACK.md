@@ -32,7 +32,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | `TS-BUILD-08` | TypeScript ESLint | typescript-eslint | 8.59.2 installed, `^8.46.4` requested | Adopted | `package.json:49`, `package-lock.json:2975` |
 | `TS-SEC-09` | Credential process | Devin CLI | External binary on `PATH` | Adopted | `README.md:14`, `src/core/auth.ts:35` |
 | `TS-DATA-10` | Persistence | Local JSON file | Store file version 1 | Adopted | `src/core/store.ts:18` |
-| `TS-INFRA-11` | Terminal automation | tmux | External binary on `PATH` | Adopted | `README.md:14`, `scripts/ensure-tmux.js:1`, `src/core/quota.ts:1` |
+| `TS-INFRA-11` | Terminal automation | node-pty | External binary on `PATH` | Adopted | `README.md:14`, `node-pty optional dependency:1`, `src/core/quota.ts:1` |
 | `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.1` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
 
 ## 4. Detail by Choice
@@ -201,23 +201,23 @@ This document is the source of truth for technology choices in `devin-switcher`.
 
 **Upgrade policy:** Schema changes require migration logic and SRS/test updates.
 
-### TS-INFRA-11 tmux
+### TS-INFRA-11 node-pty
 
 **Layer:** Terminal automation
 **Version (pinned):** Not pinned by repo; must be available on `PATH`
 **Lifecycle:** Adopted
-**License:** ISC-style tmux license
+**License:** ISC-style node-pty license
 **Lock file ref:** n/a
-**Rationale:** Devin's `/usage` command is interactive and must execute under each managed account profile, so `dsw quota` uses short-lived tmux sessions to send `/usage` and capture terminal output without using the default Devin credential.
+**Rationale:** Devin's `/usage` command is interactive and must execute under each managed account profile, so `dsw quota` uses hidden node-pty sessions to send `/usage` and capture terminal output without using the default Devin credential.
 **Alternatives considered:**
 
 | Option | Version | Why rejected |
 |--------|---------|--------------|
 | `devin -p "/usage"` | n/a | Uses the default credential path instead of the per-account `dsw` profile in observed behavior. |
 | Direct Devin private API | n/a | Not documented in the repo and would increase auth/secret handling scope. |
-| Expect-style automation | n/a | Adds another dependency while tmux is already broadly available and user-approved. |
+| Expect-style automation | n/a | Adds another dependency while node-pty is already broadly available and user-approved. |
 
-**Upgrade policy:** Doctor and postinstall checks must continue to detect tmux availability; quota integration tests must pass; default install must not run OS package managers unless `DSW_INSTALL_TMUX=1`.
+**Upgrade policy:** Doctor must continue to detect node-pty availability; quota integration tests must pass; default install must not run OS package managers.
 
 ### TS-PKG-12 npm Package
 
@@ -243,7 +243,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | Runtime | Minimum version in `engines` | Allows supported Node.js 20+ patch/minor releases. |
 | npm dependencies | npm lock file | Reproducible local install. |
 | External Devin CLI | Runtime detection | User controls installed Devin binary. |
-| External tmux binary | Runtime detection and postinstall check | OS package managers own tmux installation and patch cadence. |
+| node-pty optional package | Runtime detection | npm optional dependency owns node-pty installation and patch cadence. |
 | Store schema | Numeric store version | Enables future migration. |
 | Package version | `package.json` plus lock-file root | Keeps npm publish, `dsw update`, and release docs aligned. |
 
@@ -261,7 +261,7 @@ Lock files MUST be committed. Root package name/version drift is release-blockin
 |---------|------:|-------|
 | MIT / Apache-style / permissive | Many | npm dependencies appear typical permissive packages; run `npm ls --json` or a license scanner before distribution. |
 | Proprietary / external | 1 | Devin CLI availability and license are outside this repo. |
-| Permissive system tools | 1 | tmux is an external system dependency used for terminal automation. |
+| Permissive system tools | 1 | node-pty is an external system dependency used for terminal automation. |
 
 Forbidden licenses: none documented in code.
 
@@ -269,7 +269,7 @@ Forbidden licenses: none documented in code.
 
 - `npm install` should honor `package-lock.json`.
 - `npm audit` or an equivalent scanner should run before public release.
-- `npm pack --dry-run` should show only runtime package files: `bin`, `dist/src`, `scripts/ensure-tmux.js`, `README.md`, and `package.json`.
+- `npm pack --dry-run` should show only runtime package files: `bin`, `dist/src`, `node-pty optional dependency`, `README.md`, and `package.json`.
 - Credentials remain owned by the Devin CLI under profile data dirs; `dsw` only isolates where Devin writes them.
 
 ---
@@ -324,6 +324,6 @@ Forbidden licenses: none documented in code.
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
-| 1.1.0 | 2026-05-07 | itsddvn | Added tmux as the terminal automation dependency for quota reporting. |
+| 1.1.0 | 2026-05-07 | itsddvn | Added node-pty as the terminal automation dependency for quota reporting. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield extraction from manifests and config files. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added npm package distribution, build-package config, and resolved lock metadata drift. |
