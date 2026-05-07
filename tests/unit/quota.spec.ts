@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseQuotaSummary, readQuotaForAccount } from '../../src/core/quota';
+import { parseQuotaSummary, quotaDiagnostic, readQuotaForAccount } from '../../src/core/quota';
 import type { Account } from '../../src/core/store';
 import type { RunResult } from '../../src/util/exec';
 import { createSandbox } from '../helpers/sandbox';
@@ -67,6 +67,38 @@ Quota resets May 7, 3:00 PM (UTC+7).
 
     expect(summary.usedPercent).toBe('100%');
     expect(summary.remainingPercent).toBe('0%');
+  });
+});
+
+describe('quotaDiagnostic', () => {
+  it('strips terminal controls and Devin TUI noise from failed PTY output', () => {
+    const diagnostic = quotaDiagnostic(`
+\x1B]10;rgb:f54f/f54f/f54f\x07\x1B]11;rgb:0000/0000/0000\x07\x1B[?1;2c\x1B[60;3R
+dcppsw: failed to read usage
+  ⚠︎ Devin for Terminal works best when run in a project directory, not your home directory.
+◆ Trust ~/? Yes, trust ~/
+  ⠀⠀⠀⠀⠀⣴⣾⣶⡄⠀⠀⠀⠀
+  ⠀⣴⣾⣶⡾⠛⠿⠟⠃⣴⣾⣶⡄  Devin for Terminal
+                        │  Welcome to Devin for Terminal!                                        │
+  ❭ Ask Devin to build features, fix bugs, or work on your code
+Error: \`error applying update\`, \`UNIQUE constraint failed: refinery_schema_history.version\`
+dcppsw@Ducs-MacBook-Air:~$ 10;rgb:f54f/f54f/f54f
+dcppsw@Ducs-MacBook-Air:~$ 1;2c1;2c0;3R
+`);
+
+    expect(diagnostic).toBe('dcppsw: failed to read usage\nError: `error applying update`, `UNIQUE constraint failed: refinery_schema_history.version`');
+  });
+
+  it('keeps quota lines needed for diagnostics', () => {
+    const diagnostic = quotaDiagnostic(`
+Trial · 91% remaining (resets in 2d 17h)
+Quota used: 9% (remaining: 91%)
+Quota resets May 7, 3:00 PM (UTC+7).
+`);
+
+    expect(diagnostic).toContain('Trial · 91% remaining');
+    expect(diagnostic).toContain('Quota used: 9%');
+    expect(diagnostic).toContain('Quota resets May 7');
   });
 });
 

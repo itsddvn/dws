@@ -83,7 +83,7 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
 
 function quotaResultFromRun(account: Account, result: Awaited<ReturnType<typeof runCapture>>): AccountQuota {
   const raw = `${result.stdout}\n${result.stderr}`;
-  const rawRedacted = redactText(raw).trim();
+  const rawRedacted = quotaDiagnostic(raw);
   const notLoggedIn = /not logged in/i.test(raw);
   const exhausted = /quota has been exhausted|quota exhausted/i.test(raw);
   const summary = parseQuotaSummary(raw);
@@ -111,7 +111,7 @@ function buildQuotaEnv(
 }
 
 function quotaResult(account: Account, raw: string, timedOut: boolean, exitCode: number | null): AccountQuota {
-  const rawRedacted = redactText(raw).trim();
+  const rawRedacted = quotaDiagnostic(raw);
   const notLoggedIn = /not logged in/i.test(raw);
   const exhausted = /quota has been exhausted|quota exhausted/i.test(raw);
   const summary = parseQuotaSummary(raw);
@@ -190,6 +190,36 @@ export function parseQuotaSummary(output: string): QuotaSummary {
 
 export function summaryHasUsableFields(summary: QuotaSummary): boolean {
   return Boolean(summary.tier || summary.usedPercent || summary.remainingPercent || summary.resetsIn || summary.resetAt);
+}
+
+export function quotaDiagnostic(output: string): string {
+  const text = stripTerminalControls(redactText(output));
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !isQuotaDiagnosticNoise(line));
+  return Array.from(new Set(lines)).join('\n').trim();
+}
+
+function stripTerminalControls(value: string): string {
+  return value
+    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, '')
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1B[()][0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1B[=>78DEHMNOPc]/g, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
+function isQuotaDiagnosticNoise(line: string): boolean {
+  if (/^(?:[0-9]+;)*[0-9]+[cR](?:[0-9]+;rgb:[0-9a-fA-F/]+)?$/.test(line)) return true;
+  if (/^(?:10|11);rgb:[0-9a-fA-F/]+$/.test(line)) return true;
+  if (/^\S+@\S+:\S+\$\s*(?:[0-9]+;rgb:[0-9a-fA-F/]+|[0-9;]+[cR])+$/.test(line)) return true;
+  if (/^[\s\p{So}\p{Sm}\p{Sc}\p{Sk}\p{P}]+$/u.test(line)) return true;
+  if (/Devin for Terminal|Welcome to Devin|Ask Devin to build|Looking for plan mode/i.test(line)) return true;
+  if (/works best when run in a project directory|Trust ~\/\?|You won't see this message again/i.test(line)) return true;
+  if (/Thank you for giving this a try|Control \+ O|\/models|\/bug|x\.com\/cognition/i.test(line)) return true;
+  return false;
 }
 
 function cleanTier(value: string | undefined): string | undefined {
