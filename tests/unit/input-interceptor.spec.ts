@@ -82,4 +82,15 @@ describe('InputInterceptor', () => {
     expect(interceptor.push('\u001b')).toEqual({ passThrough: '\u001b', localEcho: '', rotate: false });
     expect(interceptor.push('\r')).toEqual({ passThrough: '', localEcho: '', rotate: true });
   });
+
+  it('passes through backspaces for normal Devin input down to empty line', () => {
+    const interceptor = new InputInterceptor();
+
+    expect(interceptor.push('abc')).toEqual({ passThrough: 'abc', localEcho: '', rotate: false });
+    expect(interceptor.push('\u007f')).toEqual({ passThrough: '\u007f', localEcho: '', rotate: false });
+    expect(interceptor.push('\u007f')).toEqual({ passThrough: '\u007f', localEcho: '', rotate: false });
+    expect(interceptor.push('\u007f')).toEqual({ passThrough: '\u007f', localEcho: '', rotate: false });
+    expect(interceptor.push('bcd')).toEqual({ passThrough: 'bcd', localEcho: '', rotate: false });
+    expect(interceptor.push('\u007f\u007f\u007f')).toEqual({ passThrough: '\u007f\u007f\u007f', localEcho: '', rotate: false });
+  });
 });

@@ -51,8 +51,9 @@ export class InputInterceptor {
       }
 
       if (isBackspace(char)) {
+        const wasLocalCommandCandidate = isLocalCommandCandidate(this.line);
         this.line = this.line.slice(0, -1);
-        if (isLocalCommandCandidate(this.line)) localEcho += char;
+        if (wasLocalCommandCandidate) localEcho += char;
         else passThrough += char;
         continue;
       }
