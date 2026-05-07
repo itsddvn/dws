@@ -1,4 +1,5 @@
 import { readQuotaForAccount } from '../../core/quota';
+import { readQuotaCache, writeQuotaCache } from '../../core/quota-cache';
 import { AccountStore } from '../../core/store';
 import { renderTable } from '../../util/format';
 
@@ -11,6 +12,8 @@ export async function runQuota(): Promise<void> {
   }
 
   const results = await Promise.all(accounts.map((account) => readQuotaForAccount(account)));
+  const cache = readQuotaCache();
+  writeQuotaCache(cache, results.filter((result) => result.status === 'ok' || result.status === 'exhausted'));
 
   const rows = results.map((result) => [
     result.account.name,

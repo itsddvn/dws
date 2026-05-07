@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 import { resolveAppPaths, type AppPaths } from '../config/paths';
+import { validateAccountName } from '../util/account-name';
+import { atomicWriteJsonSync } from '../util/atomic-write';
 
 export interface Account {
   id: string;
@@ -146,25 +147,13 @@ export class AccountStore {
   }
 
   private save(file: StoreFile): void {
-    fs.mkdirSync(path.dirname(this.paths.storePath), { recursive: true, mode: 0o700 });
-    const tmp = `${this.paths.storePath}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(file, null, 2), { mode: 0o600 });
-    fs.renameSync(tmp, this.paths.storePath);
+    atomicWriteJsonSync(this.paths.storePath, file);
     this.cache = file;
   }
 }
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
-}
-
-function validateAccountName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error('Account name is required');
-  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) {
-    throw new Error('Account name may only contain letters, numbers, underscores, and dashes');
-  }
-  return trimmed;
 }
 
 function normalizeAccount(raw: unknown): Account {

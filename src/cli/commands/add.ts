@@ -1,7 +1,7 @@
-import { readAuthStatus, runDevinLogin, type DevinAuthStatus } from '../../core/auth';
-import { readProfileOrgId } from '../../core/profile-config';
 import { ensureProfileDirs, removeProfileDir } from '../../core/profile-paths';
 import { AccountStore, type Account } from '../../core/store';
+import { slugifyAccountName } from '../../util/account-name';
+import { finalizeLogin } from './_shared';
 
 export async function runAdd(name?: string): Promise<void> {
   const store = new AccountStore();
@@ -10,8 +10,9 @@ export async function runAdd(name?: string): Promise<void> {
   ensureProfileDirs(account.id);
 
   console.log(`Created profile ${explicitName || 'for new account'}. Launching \`devin auth login\`...`);
+  let result;
   try {
-    await runDevinLogin(account.id);
+    result = await finalizeLogin(store, account.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Login failed: ${message}`);
@@ -20,8 +21,7 @@ export async function runAdd(name?: string): Promise<void> {
     return;
   }
 
-  const status = await readAuthStatus(account.id);
-  if (!status.loggedIn) {
+  if (!result.loggedIn) {
     console.error(`Login did not complete${explicitName ? ` for ${account.name}` : ''}.`);
     if (explicitName) {
       console.error(`Run \`dsw login ${account.name}\` to retry.`);
@@ -33,14 +33,12 @@ export async function runAdd(name?: string): Promise<void> {
     return;
   }
 
-  const namedAccount = explicitName ? account : renameFromAuthStatus(store, account, status);
-  store.setAuthMetadata(namedAccount.id, {
-    email: status.email ?? null,
-    tier: status.tier ?? null,
-    plan: status.plan ?? null,
-    orgId: readProfileOrgId(namedAccount.id)
-  });
-  console.log(`Added ${namedAccount.name}${status.email ? ` (${status.email})` : ''}.`);
+  const finalName = explicitName ? account.name : applyAuthStatusName(store, account, result.name, result.email);
+  if (!finalName) {
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Added ${finalName}${result.email ? ` (${result.email})` : ''}.`);
 }
 
 function rollback(store: AccountStore, id: string): void {
@@ -53,24 +51,22 @@ function rollback(store: AccountStore, id: string): void {
   removeProfileDir(id);
 }
 
-function renameFromAuthStatus(store: AccountStore, account: Account, status: DevinAuthStatus): Account {
-  const detected = detectedAccountName(status);
+/**
+ * Rename a freshly-created account using the name reported by
+ * `devin auth status`, falling back to the email local-part. Returns the
+ * resolved account name, or `null` (after rolling back) when no usable
+ * name could be derived.
+ */
+function applyAuthStatusName(store: AccountStore, account: Account, name: string | null, email: string | null): string | null {
+  const source = name ?? email?.split('@')[0] ?? null;
+  const detected = slugifyAccountName(source);
   if (!detected) {
     rollback(store, account.id);
-    throw new Error('Could not detect account name after login. Run `dsw add <name>` instead.');
+    console.error('Could not detect account name after login. Run `dsw add <name>` instead.');
+    return null;
   }
-  return store.rename(account.id, uniqueAccountName(store, detected, account.id));
-}
-
-function detectedAccountName(status: DevinAuthStatus): string | null {
-  const source = status.name || status.email?.split('@')[0];
-  if (!source) return null;
-  const slug = source
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || null;
+  const renamed = store.rename(account.id, uniqueAccountName(store, detected, account.id));
+  return renamed.name;
 }
 
 function uniqueAccountName(store: AccountStore, base: string, excludeId?: string): string {

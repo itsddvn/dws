@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { type AppPaths } from '../config/paths';
+import { atomicWriteJsonSync, readJsonOrNull } from '../util/atomic-write';
 import { ensureProfileDirs, type ProfilePaths } from './profile-paths';
 
 type JsonObject = Record<string, unknown>;
@@ -97,18 +98,12 @@ function profileDevinConfigPath(profilePaths: ProfilePaths): string {
 }
 
 function readJsonObject(filePath: string): JsonObject | null {
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
-    return isJsonObject(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = readJsonOrNull<unknown>(filePath);
+  return isJsonObject(parsed) ? parsed : null;
 }
 
 function writeJsonObject(filePath: string, value: JsonObject): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  atomicWriteJsonSync(filePath, value);
 }
 
 function mergeJsonObjects(base: JsonObject, override: JsonObject): JsonObject {
