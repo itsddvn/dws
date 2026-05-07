@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import packageJson from '../../package.json';
 import { AccountStore } from '../../src/core/store';
 import { runCapture } from '../../src/util/exec';
 import { createSandbox, fakeDevinPath, type Sandbox } from '../helpers/sandbox';
@@ -69,7 +70,7 @@ describe('dsw CLI', () => {
   it('prints the package version', async () => {
     const result = await runCli(sandbox, ['--version']);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toBe('0.4.4');
+    expect(result.stdout.trim()).toBe(packageJson.version);
   });
 
   it('add -> list -> remove flow', async () => {

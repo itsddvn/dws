@@ -112,7 +112,7 @@
 **Window:** 2026-05-07 -> 2026-05-07.
 **Goal:** Resolve package metadata drift, publish npm-ready metadata, and document quota cache behavior.
 **Workstreams:**
-- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.1`.
+- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.6`.
 - Build: ship runtime-only package contents from `dist/src`.
 - Runtime: add quota cache, quota skip env var, and cache TTL env var.
 - Installer: make node-pty auto-install opt-in.
@@ -165,9 +165,7 @@
 
 | Tag | Milestone | Date | Audience |
 |-----|-----------|------|----------|
-| 0.3.0 | Initial package baseline | 2026-05-07 | local/internal |
-| 0.4.0 | M4/M5 account use, quota reporting, and node-pty dependency handling | 2026-05-07 | npm/GitHub |
-| 0.4.1 | M6 package metadata, runtime package files, and quota cache docs | 2026-05-07 | npm/GitHub |
+| 0.4.6 | Current npm/GitHub release with quota PTY install hardening and package metadata alignment | 2026-05-07 | npm/GitHub |
 
 ## 8. Cadence
 
