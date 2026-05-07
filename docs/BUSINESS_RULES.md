@@ -1,9 +1,9 @@
 # Business Rules - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0
+**Source:** PRD v1.2.0
 **Owner:** itsddvn
 
 ---
@@ -25,10 +25,10 @@ Business rules define durable product policy for local account switching, creden
 
 ### BR-AUTH-01 Ready Accounts Only
 
-**Statement:** System SHALL only run Devin with accounts where `needsLogin` is false.
-**Rationale:** Accounts requiring login cannot be trusted to execute a Devin session successfully.
-**Enforcement Point:** `pickNextAccount` and `pickNextAccountInList` filters.
-**Violation Behavior:** Command prints "No eligible accounts" when all accounts need login.
+**Statement:** System SHALL only run Devin automatically with accounts where `needsLogin` is false and quota is not known to be exhausted.
+**Rationale:** Accounts requiring login or known to have zero remaining quota cannot be trusted to execute a Devin session successfully.
+**Enforcement Point:** `pickBestAccountByQuota` filters.
+**Violation Behavior:** Command prints "No eligible accounts" when all accounts need login or have exhausted quota.
 **Related:** `FR-RUN-001`, `FR-RUN-002`, PRD section 4.4.
 
 ### BR-SEC-01 Credential Isolation
@@ -129,3 +129,4 @@ Business rules define durable product policy for local account switching, creden
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added quota automation and tmux dependency operating rules. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial business rules extraction from current behavior. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run eligibility to include quota availability. |

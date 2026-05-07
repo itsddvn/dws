@@ -1,9 +1,9 @@
 # Software Requirements Specification - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0, BusinessRules v1.1.0, ARCHITECTURE v1.1.0
+**Source:** PRD v1.2.0, BusinessRules v1.2.0, ARCHITECTURE v1.2.0
 **Owner:** itsddvn
 
 ---
@@ -20,9 +20,9 @@ Scope mirrors PRD section 1.2: local account management, profile isolation, Devi
 See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI state definitions.
 
 ### 1.4 References
-- PRD v1.1.0
-- BusinessRules v1.1.0
-- ARCHITECTURE v1.1.0
+- PRD v1.2.0
+- BusinessRules v1.2.0
+- ARCHITECTURE v1.2.0
 
 ## 2. Overall Description
 
@@ -133,20 +133,20 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 
 ### 3.4 Run Selection (`FR-RUN-*`)
 
-#### FR-RUN-001 Default LRU Selection
-**Statement:** System SHALL select the least-recently-used ready account for default `dsw [args...]`.
-**Input:** Account list.
+#### FR-RUN-001 Quota-Aware Default Selection
+**Statement:** System SHALL check quota before default `dsw [args...]` and select the ready account with the highest known remaining quota, using least-recently-used as the tie-breaker.
+**Input:** Account list and per-account quota results.
 **Output:** Selected account or no-eligible error.
-**Acceptance:** Runner unit tests verify LRU, never-used preference, tie-breaks, and skipped login accounts.
-**Components:** `C-01`, `C-02`, `C-04`.
+**Acceptance:** Runner unit tests verify highest remaining quota, LRU tie-breaks, skipped login accounts, skipped exhausted accounts, and fallback when quota checks fail.
+**Components:** `C-01`, `C-02`, `C-04`, `C-07`.
 **Related BR:** `BR-AUTH-01`.
 
-#### FR-RUN-002 List-Order Selection
-**Statement:** System SHALL select the next ready account in configured list order for `dsw next [args...]`.
-**Input:** Account list and last-used timestamps.
+#### FR-RUN-002 Quota-Aware Next Selection
+**Statement:** System SHALL check quota before `dsw next [args...]` and select the ready account with the highest known remaining quota.
+**Input:** Account list and per-account quota results.
 **Output:** Selected account or no-eligible error.
-**Acceptance:** Runner unit tests verify wraparound and skipped login accounts.
-**Components:** `C-01`, `C-02`, `C-04`.
+**Acceptance:** Integration tests verify `dsw next` checks all ready accounts and selects the account with maximum remaining quota.
+**Components:** `C-01`, `C-02`, `C-04`, `C-07`.
 **Related BR:** `BR-AUTH-01`.
 
 #### FR-RUN-003 Forward Devin Arguments and Exit Code
@@ -300,7 +300,7 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 
 ## 5. Out of Scope
 
-- Quota-based account selection for this iteration.
+- Predictive quota forecasting or direct Devin API quota reads.
 - Web UI, route map, or visual design system.
 - Database engine, DDL, migrations, indexes, or SQL role policy.
 - Public/internal HTTP API.
@@ -364,3 +364,4 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 |---------|------|--------|--------|
 | 1.0.0 | 2026-05-07 | itsddvn | Initial SRS extraction from README, source, and tests. |
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota reporting, tmux install check, and tmux diagnostics requirements. |
+| 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware default and next account selection requirements. |

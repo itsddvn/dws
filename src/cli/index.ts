@@ -46,7 +46,7 @@ export async function main(argv = process.argv): Promise<void> {
 
   program.addHelpText(
     'after',
-    `\nExamples:\n  $ dsw                 Pick the least-recently-used account and run devin\n  $ dsw next            Pick the next account in list order and run devin\n  $ dsw use work        Run devin using the 'work' account\n  $ dsw use work -p "fix bug"\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Show quota/usage for all ready accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
+    `\nExamples:\n  $ dsw                 Check quota, pick the max remaining account, and run devin\n  $ dsw next            Check quota, pick the max remaining account, and run devin\n  $ dsw use work        Run devin using the 'work' account\n  $ dsw use work -p "fix bug"\n  $ dsw -p "fix bug"    Forward args to devin (anything not a subcommand is passed through)\n  $ dsw list            Show all accounts\n  $ dsw quota           Show quota/usage for all ready accounts\n  $ dsw add             Create a profile and infer its account name after login\n  $ dsw add work        Create the 'work' profile and run devin auth login\n  $ dsw login work      Re-run devin auth login for 'work'\n  $ dsw remove work --yes\n  $ dsw update          Update this dsw install\n`
   );
 
   program
@@ -85,7 +85,7 @@ export async function main(argv = process.argv): Promise<void> {
 
   program
     .command('next')
-    .description('Run devin using the next ready account in configured list order')
+    .description('Check quota, then run devin using the account with maximum remaining quota')
     .allowUnknownOption(true)
     .argument('[args...]', 'Arguments to forward to devin')
     .action(async (args: string[]) => {

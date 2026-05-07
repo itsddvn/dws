@@ -1,9 +1,9 @@
 # Use Cases - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0, SRS v1.1.0
+**Source:** PRD v1.2.0, SRS v1.2.0
 **Owner:** itsddvn
 
 ---
@@ -26,8 +26,8 @@
 | `UC-AUTH-02` | Add unnamed account | Local operator | `dsw add` | `FR-AUTH-003` |
 | `UC-AUTH-03` | Re-login account | Local operator | `dsw login work` | `FR-AUTH-002` |
 | `UC-ACC-02` | Remove account | Local operator | `dsw remove work --yes` | `FR-ACC-004` |
-| `UC-RUN-01` | Run Devin by LRU | Local operator | `dsw -p "fix bug"` | `FR-RUN-001` |
-| `UC-RUN-02` | Run next account by list order | Local operator | `dsw next -p hello` | `FR-RUN-002` |
+| `UC-RUN-01` | Run Devin by quota-aware selection | Local operator | `dsw -p "fix bug"` | `FR-RUN-001` |
+| `UC-RUN-02` | Run next account by maximum quota | Local operator | `dsw next -p hello` | `FR-RUN-002` |
 | `UC-RUN-03` | Run specific account | Local operator | `dsw use work -p hello` | `FR-RUN-004` |
 | `UC-OPS-04` | Check managed account quota | Local operator | `dsw quota` | `FR-RUN-005` |
 | `UC-OPS-01` | Diagnose install | Local operator | `dsw doctor` | `FR-OPS-001` |
@@ -138,7 +138,7 @@
 - **Related BR:** `BR-DATA-02`.
 - **Route:** n/a.
 
-### UC-RUN-01 Run Devin by LRU
+### UC-RUN-01 Run Devin by quota-aware selection
 
 - **Actor:** Local operator.
 - **Scope:** `dsw` CLI plus Devin CLI.
@@ -148,11 +148,12 @@
 - **Main Success Scenario:**
   1. CLI loads accounts.
   2. CLI filters out accounts needing login.
-  3. CLI chooses least-recently-used account.
-  4. CLI updates selected account `lastUsedAt`.
-  5. CLI prepares profile runtime.
-  6. CLI spawns `devin` with forwarded args and profile env.
-  7. CLI persists runtime config after Devin exits.
+  3. CLI checks quota for ready accounts.
+  4. CLI chooses the account with the highest known remaining quota, using least-recently-used as the tie-breaker.
+  5. CLI updates selected account `lastUsedAt`.
+  6. CLI prepares profile runtime.
+  7. CLI spawns `devin` with forwarded args and profile env.
+  8. CLI persists runtime config after Devin exits.
 - **Extensions:**
   - 1a. No accounts exist -> CLI instructs operator to run `dsw add <name>`.
   - 2a. No eligible accounts exist -> CLI instructs operator to run `dsw login <name>`.
@@ -161,7 +162,7 @@
 - **Related BR:** `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`.
 - **Route:** n/a.
 
-### UC-RUN-02 Run next account by list order
+### UC-RUN-02 Run next account by maximum quota
 
 - **Actor:** Local operator.
 - **Scope:** `dsw` CLI plus Devin CLI.
@@ -170,12 +171,12 @@
 - **Trigger:** Operator runs `dsw next [args...]`.
 - **Main Success Scenario:**
   1. CLI loads accounts.
-  2. CLI infers current account from most recent `lastUsedAt`.
-  3. CLI selects the next ready account in list order, wrapping if needed.
+  2. CLI checks quota for ready accounts.
+  3. CLI selects the account with the highest known remaining quota.
   4. CLI runs Devin under the selected account profile.
 - **Extensions:**
-  - 3a. Candidate needs login -> CLI skips it.
-  - 2a. No account was used before -> CLI selects first ready account.
+  - 2a. Account needs login -> CLI skips it before quota checks.
+  - 3a. All ready accounts are exhausted -> CLI exits with no-eligible error.
 - **Postconditions:** Selected account has updated `lastUsedAt`.
 - **Related SRS:** `FR-RUN-002`, `FR-RUN-003`.
 - **Related BR:** `BR-AUTH-01`.
@@ -346,3 +347,4 @@ All selected use cases are detailed in section 3.
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct-account execution, quota reporting, and tmux-aware diagnostics use cases. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial use-case extraction from CLI commands and tests. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run use cases for quota-aware selection. |

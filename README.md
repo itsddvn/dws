@@ -22,8 +22,8 @@ when needed. Set `DSW_SKIP_TMUX_INSTALL=1` to skip this check.
 
 | Command                         | What it does                                                                                  |
 | ------------------------------- | --------------------------------------------------------------------------------------------- |
-| `dsw [args...]`                 | Picks the least-recently-used account and runs `devin` under it. Forwards args to `devin`.    |
-| `dsw next [args...]`            | Picks the next ready account in configured list order and runs `devin` under it.              |
+| `dsw [args...]`                 | Checks quota, picks the best available account, and runs `devin` under it. Forwards args.     |
+| `dsw next [args...]`            | Checks quota and picks the ready account with maximum remaining quota.                        |
 | `dsw use <name> [args...]`      | Runs `devin` under a specific ready account by name.                                         |
 | `dsw list` / `dsw ls`           | Lists configured accounts with status, plan, and last-used time.                              |
 | `dsw quota`                     | Runs Devin usage reporting under each ready account and summarizes remaining quota.           |
@@ -37,12 +37,15 @@ The default command (`dsw`) forwards any unknown args straight to `devin`, so
 `dsw -p "fix bug"` is equivalent to `devin -p "fix bug"` once the right account
 has been selected.
 
-To pick which account to run, `dsw` rotates by **least-recently-used** instead
-to spread runs across accounts.
+To pick which account to run, `dsw` checks quota first. Default execution picks
+the ready account with the highest known remaining quota, using
+least-recently-used as the tie-breaker. It skips accounts that need login and
+accounts with exhausted or zero remaining quota when another usable account is
+available, then updates `lastUsedAt` after selection.
 
-Use `dsw next` when you want explicit list-order rotation instead. It finds the
-most recently used account, picks the next ready account from `dsw list`, and
-wraps around at the end.
+Use `dsw next` when you want to force a fresh quota-aware pick. It checks every
+ready account and picks the account with maximum remaining quota, the same as
+default execution.
 
 Use `dsw use <name>` when you want to bypass rotation and run a specific
 account directly. Extra arguments are forwarded to Devin, so

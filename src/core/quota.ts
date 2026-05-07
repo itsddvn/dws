@@ -59,11 +59,13 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
   const rawRedacted = redactText(raw).trim();
   const notLoggedIn = /not logged in/i.test(raw);
   const exhausted = /quota has been exhausted|quota exhausted/i.test(raw);
+  const summary = parseQuotaSummary(raw);
+  const zeroRemaining = parsePercent(summary.remainingPercent) === 0;
 
   return {
     account,
-    status: exhausted ? 'exhausted' : result.timedOut ? 'timeout' : result.exitCode === 0 && !notLoggedIn ? 'ok' : 'error',
-    summary: parseQuotaSummary(raw),
+    status: exhausted || zeroRemaining ? 'exhausted' : result.timedOut ? 'timeout' : result.exitCode === 0 && !notLoggedIn ? 'ok' : 'error',
+    summary,
     rawRedacted,
     exitCode: result.exitCode
   };
@@ -140,11 +142,13 @@ function quotaResult(account: Account, raw: string, timedOut: boolean, exitCode:
   const rawRedacted = redactText(raw).trim();
   const notLoggedIn = /not logged in/i.test(raw);
   const exhausted = /quota has been exhausted|quota exhausted/i.test(raw);
+  const summary = parseQuotaSummary(raw);
+  const zeroRemaining = parsePercent(summary.remainingPercent) === 0;
 
   return {
     account,
-    status: exhausted ? 'exhausted' : timedOut ? 'timeout' : exitCode === 0 && !notLoggedIn ? 'ok' : 'error',
-    summary: parseQuotaSummary(raw),
+    status: exhausted || zeroRemaining ? 'exhausted' : timedOut ? 'timeout' : exitCode === 0 && !notLoggedIn ? 'ok' : 'error',
+    summary,
     rawRedacted,
     exitCode
   };
@@ -171,6 +175,14 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function parsePercent(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)%$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function parseQuotaSummary(output: string): QuotaSummary {

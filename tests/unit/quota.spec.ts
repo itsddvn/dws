@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { parseQuotaSummary } from '../../src/core/quota';
+import { parseQuotaSummary, readQuotaForAccount } from '../../src/core/quota';
+import type { Account } from '../../src/core/store';
+import type { RunResult } from '../../src/util/exec';
+
+function makeAccount(): Account {
+  return {
+    id: 'account-id',
+    name: 'account',
+    email: null,
+    tier: null,
+    plan: null,
+    orgId: null,
+    createdAt: 0,
+    lastUsedAt: null,
+    needsLogin: false
+  };
+}
+
+function makeRunResult(stdout: string): RunResult {
+  return {
+    stdout,
+    stderr: '',
+    exitCode: 0,
+    signal: null,
+    timedOut: false
+  };
+}
 
 describe('parseQuotaSummary', () => {
   it('parses real Devin /usage output', () => {
@@ -38,5 +64,22 @@ Quota resets May 7, 3:00 PM (UTC+7).
 
     expect(summary.usedPercent).toBe('100%');
     expect(summary.remainingPercent).toBe('0%');
+  });
+});
+
+describe('readQuotaForAccount', () => {
+  it('classifies parsed 0% remaining output as exhausted', async () => {
+    const quota = await readQuotaForAccount(makeAccount(), {
+      runImpl: async () =>
+        makeRunResult(`
+Trial · 0% remaining (resets in 4h 36m)
+
+Quota used: 100% (remaining: 0%)
+Quota resets May 7, 3:00 PM (UTC+7).
+`)
+    });
+
+    expect(quota.status).toBe('exhausted');
+    expect(quota.summary.remainingPercent).toBe('0%');
   });
 });

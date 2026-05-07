@@ -37,6 +37,8 @@ async function runCli(sandbox: Sandbox, args: string[], extraEnv: NodeJS.Process
     env: {
       ...sandbox.env,
       PATH: `${shimDir}:${process.env.PATH ?? ''}`,
+      DSW_QUOTA_STARTUP_DELAY_MS: '100',
+      DSW_QUOTA_TIMEOUT_MS: '3000',
       ...extraEnv
     },
     timeoutMs: 30_000
@@ -103,7 +105,7 @@ describe('dsw CLI', () => {
     expect(result.stderr).toMatch(/--yes/);
   });
 
-  it('default command rotates between accounts (least-recently-used wins), while next uses list order', async () => {
+  it('default and next use max remaining quota, with least-recently-used as a tie breaker', async () => {
     await runCli(sandbox, ['add', 'one']);
     await runCli(sandbox, ['add', 'two']);
 
@@ -123,6 +125,57 @@ describe('dsw CLI', () => {
     const second = await runCli(sandbox, ['next']);
     expect(second.exitCode).toBe(0);
     expect(second.stderr).toMatch(/Selected one/);
+  });
+
+  it('default command checks quota and picks the account with the most remaining quota', async () => {
+    await runCli(sandbox, ['add', 'low']);
+    await runCli(sandbox, ['add', 'high']);
+
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const low = store.list().find((account) => account.name === 'low')!;
+    const high = store.list().find((account) => account.name === 'high')!;
+    store.update(low.id, (account) => ({ ...account, lastUsedAt: null }));
+    store.update(high.id, (account) => ({ ...account, lastUsedAt: 5000 }));
+
+    const result = await runCli(sandbox, ['-p', 'hello'], {
+      DSW_FAKE_QUOTA_BY_PROFILE_JSON: JSON.stringify({
+        [low.id]: { used: '95', remaining: '5' },
+        [high.id]: { used: '20', remaining: '80' }
+      })
+    });
+
+    expect(result.exitCode, `stdout=${result.stdout} stderr=${result.stderr}`).toBe(0);
+    expect(result.stderr).toContain('Checking quota');
+    expect(result.stderr).toMatch(/Selected high/);
+    expect(result.stderr).toContain('quota remaining: 80%');
+  });
+
+  it('next checks quota and picks the account with the most remaining quota', async () => {
+    await runCli(sandbox, ['add', 'one']);
+    await runCli(sandbox, ['add', 'two']);
+    await runCli(sandbox, ['add', 'three']);
+
+    const store = new AccountStore(sandbox.paths);
+    store.reload();
+    const one = store.list().find((account) => account.name === 'one')!;
+    const two = store.list().find((account) => account.name === 'two')!;
+    const three = store.list().find((account) => account.name === 'three')!;
+    store.update(one.id, (account) => ({ ...account, lastUsedAt: 10 }));
+    store.update(two.id, (account) => ({ ...account, lastUsedAt: 30 }));
+    store.update(three.id, (account) => ({ ...account, lastUsedAt: 20 }));
+
+    const result = await runCli(sandbox, ['next', '-p', 'hello'], {
+      DSW_FAKE_QUOTA_BY_PROFILE_JSON: JSON.stringify({
+        [one.id]: { used: '30', remaining: '70' },
+        [two.id]: { used: '0', remaining: '100' },
+        [three.id]: { used: '100', remaining: '0' }
+      })
+    });
+
+    expect(result.exitCode, `stdout=${result.stdout} stderr=${result.stderr}`).toBe(0);
+    expect(result.stderr).toMatch(/Selected two/);
+    expect(result.stderr).toContain('quota remaining: 100%');
   });
 
   it('next forwards devin options', async () => {

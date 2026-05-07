@@ -1,9 +1,9 @@
 # Test Cases - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** SRS v1.1.0, USECASES v1.1.0, `tests/`
+**Source:** SRS v1.2.0, USECASES v1.2.0, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -45,8 +45,8 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 | `TC-ACC-002` | CLI add-list-remove flow | integration | P0 | `FR-ACC-002`, `FR-ACC-004`, `UC-ACC-01`, `UC-ACC-02` | Implemented |
 | `TC-AUTH-001` | Add unnamed account infers name | integration | P1 | `FR-AUTH-003`, `UC-AUTH-02` | Implemented |
 | `TC-AUTH-002` | Login failure marks needs-login | integration | P0 | `FR-AUTH-002`, `UC-AUTH-03`, `NFR-REL-002` | Implemented |
-| `TC-RUN-001` | LRU selector behavior | unit | P0 | `FR-RUN-001`, `UC-RUN-01` | Implemented |
-| `TC-RUN-002` | List-order selector behavior | unit | P0 | `FR-RUN-002`, `UC-RUN-02` | Implemented |
+| `TC-RUN-001` | Quota-aware default selector behavior | unit | P0 | `FR-RUN-001`, `UC-RUN-01` | Implemented |
+| `TC-RUN-002` | Quota-aware next selector behavior | integration | P0 | `FR-RUN-002`, `UC-RUN-02` | Implemented |
 | `TC-RUN-003` | CLI forwards Devin args | integration | P0 | `FR-RUN-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
 | `TC-RUN-004` | Specific account command forwards Devin args | integration | P0 | `FR-RUN-004`, `UC-RUN-03` | Implemented |
 | `TC-PROF-001` | App path resolution | unit | P0 | `FR-PROF-004` | Implemented |
@@ -151,37 +151,37 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 
 ### 6.4 RUN
 
-#### `TC-RUN-001` LRU selector behavior
+#### `TC-RUN-001` Quota-aware default selector behavior
 
 **Type:** unit
 **Priority:** P0
 **Related:** `FR-RUN-001`, `UC-RUN-01`
 **Component under test:** `C-04` selection function
 **Preconditions:** In-memory accounts.
-**Test Data:** Ready and needs-login accounts with different timestamps.
+**Test Data:** Ready, needs-login, exhausted, and quota-error accounts with different timestamps.
 **Steps:**
 1. Call `pickNextAccount` with timestamp variants.
-2. Call it with never-used accounts.
-3. Call it with all accounts needing login.
-**Expected Result:** Least recently used ready account wins; null when none eligible.
+2. Call `pickBestAccountByQuota` with different remaining percentages.
+3. Call it with exhausted accounts and quota failures.
+**Expected Result:** Highest remaining quota wins; LRU breaks quota ties; exhausted accounts are skipped; failed quota checks fall back to LRU.
 **Implementation:** `tests/unit/runner-pick.spec.ts:20`.
-**Notes:** LRU is current replacement for stale quota scope.
+**Notes:** Plain LRU behavior remains covered as the fallback path.
 
-#### `TC-RUN-002` List-order selector behavior
+#### `TC-RUN-002` Quota-aware next selector behavior
 
-**Type:** unit
+**Type:** integration
 **Priority:** P0
 **Related:** `FR-RUN-002`, `UC-RUN-02`
-**Component under test:** `C-04` selection function
+**Component under test:** `C-01`, `C-04`, `C-07`
 **Preconditions:** In-memory accounts.
-**Test Data:** Ordered accounts with current inferred from latest timestamp.
+**Test Data:** Ready accounts with different remaining quota values.
 **Steps:**
-1. Call `pickNextAccountInList` with no used accounts.
-2. Call it with a most-recently-used middle account.
-3. Call it with wraparound and skipped login account.
-**Expected Result:** First eligible, next eligible, wraparound, and null cases behave as specified.
-**Implementation:** `tests/unit/runner-pick.spec.ts:60`.
-**Notes:** Covers explicit `dsw next` semantics.
+1. Add multiple ready accounts.
+2. Run `dsw next -p hello` with per-profile fake quota values.
+3. Capture selected account and forwarded args.
+**Expected Result:** Account with maximum remaining quota is selected and forwarded args reach Devin.
+**Implementation:** `tests/integration/cli.spec.ts:157`.
+**Notes:** `dsw next` uses the same maximum-remaining quota policy as default execution.
 
 #### `TC-RUN-003` CLI forwards Devin args
 
@@ -486,3 +486,4 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account, quota reporting, tmux diagnostics, and quota parser coverage. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial test-case catalog extracted from Vitest suite. |
+| 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection unit and integration coverage. |

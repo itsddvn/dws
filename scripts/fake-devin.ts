@@ -15,6 +15,7 @@
 //   DSW_FAKE_QUOTA_REMAINING=100    -> override remaining percentage
 //   DSW_FAKE_QUOTA_RESETS_IN=5h 41m -> override relative reset time
 //   DSW_FAKE_QUOTA_RESET_AT=May 7, 3:00 PM (UTC+7) -> override absolute reset time
+//   DSW_FAKE_QUOTA_BY_PROFILE_JSON={"profile-id":{"remaining":"0","used":"100"}} -> per-profile usage override
 //   DSW_FAKE_USAGE_HANG=1          -> keep /usage running until killed
 //   DSW_FAKE_EMAIL=foo@bar   -> override the email used by auth status
 //   DSW_FAKE_NAME=Foo Bar     -> override the name used by auth status
@@ -67,11 +68,12 @@ function usage(): number {
   if (process.env.DSW_FAKE_USAGE_HANG === '1') {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
   }
-  const tier = process.env.DSW_FAKE_QUOTA_TIER ?? 'Trial';
-  const used = process.env.DSW_FAKE_QUOTA_USED ?? '0';
-  const remaining = process.env.DSW_FAKE_QUOTA_REMAINING ?? '100';
-  const resetsIn = process.env.DSW_FAKE_QUOTA_RESETS_IN ?? '5h 41m';
-  const resetAt = process.env.DSW_FAKE_QUOTA_RESET_AT ?? 'May 7, 3:00 PM (UTC+7)';
+  const profileQuota = quotaForProfile();
+  const tier = profileQuota.tier ?? process.env.DSW_FAKE_QUOTA_TIER ?? 'Trial';
+  const used = profileQuota.used ?? process.env.DSW_FAKE_QUOTA_USED ?? '0';
+  const remaining = profileQuota.remaining ?? process.env.DSW_FAKE_QUOTA_REMAINING ?? '100';
+  const resetsIn = profileQuota.resetsIn ?? process.env.DSW_FAKE_QUOTA_RESETS_IN ?? '5h 41m';
+  const resetAt = profileQuota.resetAt ?? process.env.DSW_FAKE_QUOTA_RESET_AT ?? 'May 7, 3:00 PM (UTC+7)';
   console.log(`${tier} \u00b7 ${remaining}% remaining (resets in ${resetsIn})`);
   console.log('');
   console.log('Fetching quota...');
@@ -79,6 +81,27 @@ function usage(): number {
   console.log(`Quota used: ${used}% (remaining: ${remaining}%)`);
   console.log(`Quota resets ${resetAt}.`);
   return 0;
+}
+
+function quotaForProfile(): Record<string, string | undefined> {
+  if (!process.env.DSW_FAKE_QUOTA_BY_PROFILE_JSON) return {};
+  const profileId = currentProfileId();
+  if (!profileId) return {};
+  try {
+    const parsed = JSON.parse(process.env.DSW_FAKE_QUOTA_BY_PROFILE_JSON) as Record<string, Record<string, string | undefined>>;
+    return parsed[profileId] ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function currentProfileId(): string | null {
+  const dataHome = process.env.XDG_DATA_HOME;
+  if (!dataHome) return null;
+  const parts = dataHome.split(path.sep);
+  const profilesIndex = parts.lastIndexOf('profiles');
+  if (profilesIndex === -1) return null;
+  return parts[profilesIndex + 1] ?? null;
 }
 
 function interactive(): void {

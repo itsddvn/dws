@@ -1,6 +1,6 @@
 # Product Requirements Document - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
 **Source:** Extracted from commit `3c08cdc`, updated from working tree changes on 2026-05-07, `README.md`, `package.json`, `src/`, `tests/`
@@ -16,8 +16,8 @@
 ### 1.2 Scope (in)
 - Manage local Devin account records with add, list, login, remove, use, quota, and doctor commands.
 - Run the Devin CLI under the selected account profile.
-- Select accounts by least-recently-used rotation for default execution.
-- Select accounts by configured list order for explicit `dsw next`.
+- Select accounts by quota-aware default execution, using least-recently-used only as a tie-breaker.
+- Select accounts by maximum remaining quota for both default `dsw` and explicit `dsw next`.
 - Select a specific account by name for explicit `dsw use <name>`.
 - Check managed account quota by driving Devin's interactive `/usage` command through tmux.
 - Isolate credentials with per-profile `XDG_DATA_HOME` and `XDG_CONFIG_HOME`.
@@ -26,7 +26,7 @@
 - Update a local git checkout or npm-installed package from `dsw update`.
 
 ### 1.3 Scope (out)
-- Quota-based automatic selection is out of scope for this iteration; quota reporting is in scope through `dsw quota`.
+- Quota-aware automatic selection is in scope for default `dsw` and `dsw next`; predictive quota forecasting remains out of scope.
 - Multi-user, team, or networked account sharing.
 - Cloud service, daemon, API server, database engine, web UI, or mobile UI.
 - Owning Devin authentication internals beyond invoking `devin auth login` and `devin auth status`.
@@ -87,15 +87,15 @@ Integration tests use `scripts/fake-devin.ts` and do not touch real credentials.
 **Acceptance bar:** The remove command requires confirmation and deletes the target account. Source: `src/cli/commands/remove.ts:8`.
 
 ### F4. Devin Execution Rotation
-**Goal:** Run `devin` under a selected ready account.
+**Goal:** Run `devin` under a selected ready account with usable quota.
 **Why:** Rotation spreads work across available accounts without manual switching.
 **Requirements summary:**
-- Default `dsw [args...]` picks the least-recently-used ready account.
-- `dsw next [args...]` picks the next ready account in configured list order.
+- Default `dsw [args...]` checks quota first, picks the ready account with the highest known remaining quota, then uses least-recently-used as the tie-breaker.
+- `dsw next [args...]` checks quota first and picks the ready account with the highest known remaining quota, matching default execution.
 - `dsw use <name> [args...]` runs Devin under a specific ready account.
 - All unknown args are forwarded to `devin`.
 - Accounts marked `needsLogin` are skipped.
-**Acceptance bar:** Unit and integration tests verify LRU, list-order, explicit account use, skipped accounts, and forwarded args. Source: `src/core/runner.ts:35`, `src/cli/commands/use.ts:1`, `tests/unit/runner-pick.spec.ts:20`, `tests/integration/cli.spec.ts:107`.
+**Acceptance bar:** Unit and integration tests verify quota-aware default and next selection, explicit account use, skipped login accounts, exhausted accounts, and forwarded args. Source: `src/core/runner.ts:35`, `src/cli/commands/use.ts:1`, `tests/unit/runner-pick.spec.ts:20`, `tests/integration/cli.spec.ts:107`.
 
 ### F4.1 Quota Reporting
 **Goal:** Show quota state across all managed accounts.
@@ -196,13 +196,14 @@ Project archetype: **CLI Tool**
 
 | # | Question | Decision | Date | Rationale |
 |---|----------|----------|------|-----------|
-| 1 | How should stale quota scope be handled? | Keep quota-based selection out of scope, but support explicit quota reporting with `dsw quota`. | 2026-05-07 | User confirmed interactive `/usage` works and approved tmux automation. |
+| 1 | How should quota scope be handled? | Use tmux-backed `/usage` for explicit reporting and automatic selection. | 2026-05-07 | User confirmed interactive `/usage` works and approved tmux automation. |
 | 2 | Should the JSON account store create DATABASE.md? | Skip DATABASE.md and document the JSON store in PRD/SRS/ARCHITECTURE. | 2026-05-07 | User said to ignore database docs because it is working as JSON. |
 | 3 | Should Devin CLI be in EXTERNAL_DOCS? | Include Devin CLI as an external dependency. | 2026-05-07 | User confirmed. |
 | 4 | Who owns the docs? | `itsddvn`. | 2026-05-07 | User provided owner. |
 | 5 | Which project version source wins? | Follow `package.json` version `0.3.0`. | 2026-05-07 | User confirmed package.json is canonical. |
 | 6 | How should a specific account be selected? | Add `dsw use <name> [args...]` to bypass rotation while preserving profile isolation. | 2026-05-07 | User requested direct account selection. |
 | 7 | How should tmux be provided? | Treat tmux as a quota dependency and run a best-effort installer in `postinstall`. | 2026-05-07 | User requested automatic dependency install. |
+| 8 | How should `dsw` and `dsw next` avoid exhausted accounts? | Check all ready accounts before selection and pick the account with maximum remaining quota. | 2026-05-07 | User requested quota-first maximum-remaining selection before running credentials. |
 
 ## Change Log
 
@@ -210,3 +211,4 @@ Project archetype: **CLI Tool**
 |---------|------|--------|--------|
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield extraction from commit `3c08cdc`. |
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, tmux-backed quota reporting, tmux install dependency handling, and doctor tmux validation. |
+| 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection for default and next execution. |

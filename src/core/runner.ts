@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { buildProfileEnv } from './profile-env';
 import { persistProfileRuntime } from './profile-runtime';
+import type { AccountQuota } from './quota';
 import type { Account, AccountStore } from './store';
 
 export interface RunDevinOptions {
@@ -39,22 +40,67 @@ export function pickNextAccount(accounts: Account[]): Account | null {
 }
 
 /**
- * Pick the next eligible account in configured list order. The current account
- * is inferred from the most recently used account, then selection wraps.
+ * Pick the best quota-available account for default runs. Accounts with known
+ * positive remaining quota win by highest remaining percentage, then LRU.
+ * Exhausted accounts are skipped when any usable or fallback account exists.
  */
-export function pickNextAccountInList(accounts: Account[]): Account | null {
+export function pickBestAccountByQuota(accounts: Account[], quotas: AccountQuota[]): Account | null {
   const eligible = accounts.filter((account) => !account.needsLogin);
   if (eligible.length === 0) return null;
 
-  const currentIndex = findMostRecentlyUsedIndex(accounts);
-  if (currentIndex === -1) return eligible[0]!;
+  const ranked = rankQuotaCandidates(eligible, quotas);
+  const positive = ranked
+    .filter((candidate) => candidate.usability === 'positive')
+    .sort((left, right) => {
+      if (left.remaining !== right.remaining) return right.remaining - left.remaining;
+      return compareLeastRecentlyUsed(left.account, right.account);
+    });
+  if (positive[0]) return positive[0].account;
 
-  for (let offset = 1; offset <= accounts.length; offset += 1) {
-    const candidate = accounts[(currentIndex + offset) % accounts.length]!;
-    if (!candidate.needsLogin) return candidate;
-  }
+  const unknown = ranked
+    .filter((candidate) => candidate.usability === 'unknown')
+    .map((candidate) => candidate.account)
+    .sort(compareLeastRecentlyUsed);
+  if (unknown[0]) return unknown[0];
+
+  const fallback = ranked
+    .filter((candidate) => candidate.usability === 'fallback')
+    .map((candidate) => candidate.account)
+    .sort(compareLeastRecentlyUsed);
+  if (fallback[0]) return fallback[0];
 
   return null;
+}
+
+interface QuotaCandidate {
+  account: Account;
+  usability: 'positive' | 'unknown' | 'fallback' | 'unavailable';
+  remaining: number;
+}
+
+function rankQuotaCandidates(accounts: Account[], quotas: AccountQuota[]): QuotaCandidate[] {
+  const quotaById = new Map(quotas.map((quota) => [quota.account.id, quota]));
+  return accounts.map((account) => {
+    const quota = quotaById.get(account.id);
+    if (!quota) return { account, usability: 'fallback', remaining: -1 };
+
+    const remaining = parsePercent(quota.summary.remainingPercent);
+    if (remaining !== null && remaining <= 0) return { account, usability: 'unavailable', remaining };
+
+    if (quota.status === 'needs-login' || quota.status === 'exhausted') return { account, usability: 'unavailable', remaining: 0 };
+    if (quota.status === 'error' || quota.status === 'timeout') return { account, usability: 'fallback', remaining: -1 };
+
+    if (remaining === null) return { account, usability: 'unknown', remaining: -1 };
+    return { account, usability: 'positive', remaining };
+  });
+}
+
+function parsePercent(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)%$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function compareLeastRecentlyUsed(left: Account, right: Account): number {
@@ -64,19 +110,4 @@ function compareLeastRecentlyUsed(left: Account, right: Account): number {
   // Tie break: created earlier first (deterministic).
   if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
   return left.name.localeCompare(right.name);
-}
-
-function findMostRecentlyUsedIndex(accounts: Account[]): number {
-  let bestIndex = -1;
-  let bestLastUsed = -1;
-
-  accounts.forEach((account, index) => {
-    const lastUsed = account.lastUsedAt ?? -1;
-    if (lastUsed > bestLastUsed) {
-      bestIndex = index;
-      bestLastUsed = lastUsed;
-    }
-  });
-
-  return bestIndex;
 }

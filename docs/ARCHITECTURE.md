@@ -1,9 +1,9 @@
 # Architecture - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0, TECHSTACK v1.1.0, `src/`, `tests/`, `README.md`
+**Source:** PRD v1.2.0, TECHSTACK v1.1.0, `src/`, `tests/`, `README.md`
 **Owner:** itsddvn
 
 ---
@@ -198,7 +198,10 @@ sequenceDiagram
     participant Runtime as C-05 Runtime Sync
     participant Devin as C-04 Devin
     Operator->>CLI: dsw [args...]
+    CLI->>Quota: read quota for ready accounts
+    Quota-->>CLI: quota results
     CLI->>Store: list ready accounts
+    CLI->>CLI: pick highest remaining quota, LRU tie-break
     CLI->>Store: touch selected lastUsedAt
     CLI->>Runtime: prepare profile runtime
     CLI->>Devin: spawn devin [args...] with XDG env
@@ -333,21 +336,21 @@ flowchart TB
 **Related components:** `C-05`
 **Source:** `src/core/profile-runtime.ts:25`
 
-### `AD-04` Rotate by LRU by default
+### `AD-04` Select by quota before automatic runs
 
 **Status:** Inferred
 **Date:** 2026-05-07
-**Context:** Quota parsing was removed; current code needs a deterministic local selection rule.
-**Decision:** Default run selects the least-recently-used ready account.
+**Context:** Operators need `dsw` and `dsw next` to avoid accounts that are already exhausted.
+**Decision:** Default `dsw` and `dsw next` read quota for all ready accounts first, then select the account with the highest known remaining quota, using least-recently-used as a tie-breaker.
 **Consequences:**
-- Positive: No dependence on undocumented quota output.
-- Negative: Does not account for actual quota availability.
-- Neutral: `dsw next` remains available for list-order control.
+- Positive: Automatic runs avoid known exhausted accounts.
+- Negative: Default and next execution wait for quota checks before spawning Devin.
+- Neutral: If quota checks fail, selection falls back to the prior deterministic local behavior.
 **Alternatives considered:**
-- Quota-based automatic selection - deferred; explicit `dsw quota` reports state without changing default selection.
-**Related TS:** `TS-LANG-01`
-**Related components:** `C-01`, `C-02`, `C-04`
-**Source:** `src/core/runner.ts:31`, `prd.md:2`
+- Ignoring quota for automatic runs - rejected after user requested quota-first selection.
+**Related TS:** `TS-LANG-01`, `TS-INFRA-11`
+**Related components:** `C-01`, `C-02`, `C-04`, `C-07`
+**Source:** `src/core/runner.ts:39`, `src/cli/commands/default.ts:1`, `src/cli/commands/next.ts:1`
 
 ### `AD-05` Use fake Devin for integration tests
 
@@ -436,3 +439,4 @@ flowchart TB
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota terminal automation, tmux integration, and related ADR/traceability. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield architecture extraction from current code. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run flow and ADR for quota-aware selection. |

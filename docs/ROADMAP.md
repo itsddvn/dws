@@ -1,9 +1,9 @@
 # Roadmap - devin-switcher
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-05-07
 **Status:** Draft
-**Source:** PRD v1.1.0, SRS v1.1.0, TECHSTACK v1.1.0, ARCHITECTURE v1.1.0, TESTCASES v1.1.0
+**Source:** PRD v1.2.0, SRS v1.2.0, TECHSTACK v1.1.0, ARCHITECTURE v1.2.0, TESTCASES v1.2.0
 **Owner:** itsddvn
 
 ---
@@ -42,7 +42,7 @@
 - Store and runner logic in `src/core/`.
 **Hard Exit Gate (all must pass):**
 - [x] Add/list/remove/login integration tests pass.
-- [x] LRU and list-order selection unit tests pass.
+- [x] LRU fallback and quota-aware selection tests pass.
 
 ### M2 Shared runtime and config sync (completed)
 
@@ -75,10 +75,10 @@
 ### M4 Direct account and quota reporting (completed)
 
 **Window:** 2026-05-07 -> 2026-05-07.
-**Goal:** Add direct named-account execution and all-account quota reporting.
+**Goal:** Add direct named-account execution, all-account quota reporting, and quota-aware automatic selection.
 **Workstreams:**
 - CLI: add `dsw use <name>` and `dsw quota`.
-- Runtime: automate interactive `/usage` through tmux under each profile env.
+- Runtime: automate interactive `/usage` through tmux under each profile env and use parsed quota to avoid exhausted automatic-run candidates.
 - Tests: fake interactive Devin, quota parser, and command coverage.
 **Deliverables:**
 - `src/cli/commands/use.ts`.
@@ -87,6 +87,7 @@
 **Hard Exit Gate (all must pass):**
 - [x] Direct account command selects the named ready account.
 - [x] Quota command skips needs-login accounts and reports per-account usage.
+- [x] Default and next execution check quota before selecting an account.
 - [x] tmux-backed real smoke test returns account quota rows.
 
 ### M5 tmux dependency packaging and docs (completed)
@@ -204,3 +205,4 @@ Lower-numbered doc wins ties. Update upstream first.
 |---------|------|--------|--------|
 | 1.1.0 | 2026-05-07 | itsddvn | Updated roadmap for completed direct account selection, quota reporting, and tmux dependency packaging. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial roadmap extracted from git history, current code, and user decisions. |
+| 1.2.0 | 2026-05-07 | itsddvn | Updated roadmap to include quota-aware automatic selection. |
