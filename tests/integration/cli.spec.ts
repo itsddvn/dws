@@ -65,6 +65,12 @@ describe('dsw CLI', () => {
     }
   });
 
+  it('prints the package version', async () => {
+    const result = await runCli(sandbox, ['--version']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe('0.4.1');
+  });
+
   it('add -> list -> remove flow', async () => {
     const add = await runCli(sandbox, ['add', 'primary']);
     expect(add.exitCode, `add stdout=${add.stdout} stderr=${add.stderr}`).toBe(0);

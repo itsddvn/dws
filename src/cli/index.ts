@@ -17,7 +17,7 @@ function buildProgram(): Command {
   program
     .name('dsw')
     .description('Devin CLI account switcher: rotate between accounts and run devin under each.')
-    .version('0.3.0');
+    .version('0.4.1');
 
   program.addHelpText(
     'after',
