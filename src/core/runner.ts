@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { buildProfileEnv } from './profile-env';
+import { persistProfileRuntime } from './profile-runtime';
 import type { Account, AccountStore } from './store';
 
 export interface RunDevinOptions {
@@ -11,15 +12,19 @@ export interface RunDevinOptions {
 
 export async function runDevinForAccount(store: AccountStore, account: Account, options: RunDevinOptions): Promise<number | null> {
   const appPaths = options.appPaths ?? resolveAppPaths();
+  const baseEnv = options.baseEnv ?? process.env;
   store.touchLastUsed(account.id);
 
   return await new Promise((resolve, reject) => {
     const child = spawn('devin', options.args, {
-      env: buildProfileEnv(account.id, appPaths, options.baseEnv ?? process.env),
+      env: buildProfileEnv(account.id, appPaths, baseEnv),
       stdio: 'inherit'
     });
     child.on('error', reject);
-    child.on('exit', (code) => resolve(code));
+    child.on('exit', (code) => {
+      persistProfileRuntime(account.id, appPaths, baseEnv);
+      resolve(code);
+    });
   });
 }
 

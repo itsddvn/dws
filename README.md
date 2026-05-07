@@ -50,7 +50,15 @@ you run `dsw`, so a global install sees the same accounts from every project.
 When `dsw` spawns `devin`, it sets `XDG_DATA_HOME` and `XDG_CONFIG_HOME` to that
 profile so `devin auth login` writes credentials into
 `<profile>/data/devin/credentials.toml` instead of the shared global location.
-Removing an account also removes that directory.
+The per-profile `devin/cli` state is linked back to your normal Devin data
+directory, so sessions, logs, trusted workspaces, and other CLI state are shared
+when `dsw` rotates accounts.
+
+`dsw` also syncs non-auth settings from `~/.config/devin/config.json` into each
+profile before running Devin and writes setting changes back afterward. Each
+profile keeps its own `devin.org_id`, so account-specific auth metadata does
+not leak between accounts. Removing an account also removes its profile
+directory.
 
 The metadata index lives in `~/.dsw/accounts.json` by default (a plain JSON file
 you can inspect or back up).

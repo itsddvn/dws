@@ -3,6 +3,7 @@ import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { runCapture, type RunOptions } from '../util/exec';
 import { redactText } from '../util/redact';
 import { buildProfileEnv } from './profile-env';
+import { persistProfileRuntime } from './profile-runtime';
 
 export interface DevinAuthStatus {
   loggedIn: boolean;
@@ -28,10 +29,11 @@ export interface AuthStatusOptions {
 export function runDevinLogin(profileId: string, options: LoginOptions = {}): Promise<void> {
   const appPaths = options.appPaths ?? resolveAppPaths();
   const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
+  const baseEnv = options.baseEnv ?? process.env;
 
   return new Promise((resolve, reject) => {
     const child = spawn('devin', ['auth', 'login'], {
-      env: buildProfileEnv(profileId, appPaths, options.baseEnv ?? process.env),
+      env: buildProfileEnv(profileId, appPaths, baseEnv),
       stdio: 'inherit'
     });
 
@@ -47,6 +49,7 @@ export function runDevinLogin(profileId: string, options: LoginOptions = {}): Pr
 
     child.on('exit', (code, signal) => {
       clearTimeout(timer);
+      persistProfileRuntime(profileId, appPaths, baseEnv);
       if (code === 0) {
         resolve();
         return;
