@@ -89,7 +89,6 @@ Quota resets May 7, 3:00 PM (UTC+7).
   it('uses --print fallback when a test run implementation is injected', async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
     const quota = await readQuotaForAccount(makeAccount(), {
-      transport: 'pty',
       startupDelayMs: 0,
       timeoutMs: 1,
       runImpl: async (command, args) => {
@@ -109,6 +108,51 @@ Quota resets May 7, 3:00 PM (UTC+7).
     expect(quota.status).toBe('ok');
     expect(quota.summary.remainingPercent).toBe('88%');
     expect(calls).toEqual([{ command: 'devin', args: ['--print', '/usage'] }]);
+  });
+
+  it('falls back to --print when auto transport cannot start node-pty', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const quota = await readQuotaForAccount(makeAccount(), {
+      ptyProbeImpl: async () => ({
+        raw: 'PTY unavailable: node-pty spawn failed: posix_spawnp failed.',
+        timedOut: false,
+        exitCode: null
+      }),
+      runImpl: async (command, args) => {
+        calls.push({ command, args });
+        return makeRunResult(`
+Trial · 74% remaining (resets in 18h 13m)
+
+Quota used: 26% (remaining: 74%)
+Quota resets May 8, 3:00 PM (UTC+7).
+`);
+      }
+    });
+
+    expect(quota.status).toBe('ok');
+    expect(quota.summary.remainingPercent).toBe('74%');
+    expect(quota.rawRedacted).not.toContain('PTY unavailable');
+    expect(calls).toEqual([{ command: 'devin', args: ['--print', '/usage'] }]);
+  });
+
+  it('does not use print fallback when pty transport is explicitly required', async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const quota = await readQuotaForAccount(makeAccount(), {
+      transport: 'pty',
+      ptyProbeImpl: async () => ({
+        raw: 'PTY unavailable: node-pty spawn failed: posix_spawnp failed.',
+        timedOut: false,
+        exitCode: null
+      }),
+      runImpl: async (command, args) => {
+        calls.push({ command, args });
+        return makeRunResult('Trial · 74% remaining');
+      }
+    });
+
+    expect(quota.status).toBe('error');
+    expect(quota.rawRedacted).toContain('PTY unavailable');
+    expect(calls).toEqual([]);
   });
 
   it('can skip profile runtime preparation for rotate-confirm validation', async () => {

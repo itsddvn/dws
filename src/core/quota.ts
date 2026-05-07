@@ -1,8 +1,8 @@
 import { resolveAppPaths, type AppPaths } from '../config/paths';
-import { runCapture, type RunOptions } from '../util/exec';
+import { runCapture } from '../util/exec';
 import { redactText } from '../util/redact';
 import { buildProfileEnv, buildProfileEnvWithoutRuntime } from './profile-env';
-import { probeQuotaViaPty } from './quota-pty-probe';
+import { probeQuotaViaPty, type QuotaPtyProbeOptions, type QuotaPtyProbeResult } from './quota-pty-probe';
 import type { Account } from './store';
 
 export interface QuotaSummary {
@@ -29,6 +29,7 @@ export interface ReadQuotaOptions {
   startupDelayMs?: number;
   transport?: 'auto' | 'pty' | 'print';
   prepareRuntime?: boolean;
+  ptyProbeImpl?: (account: Account, options: QuotaPtyProbeOptions) => Promise<QuotaPtyProbeResult>;
 }
 
 export async function readQuotaForAccount(account: Account, options: ReadQuotaOptions = {}): Promise<AccountQuota> {
@@ -51,23 +52,50 @@ export async function readQuotaForAccount(account: Account, options: ReadQuotaOp
   const env = buildQuotaEnv(account.id, appPaths, baseEnv, options.prepareRuntime ?? true);
 
   if (transport === 'auto' || transport === 'pty') {
-    if (!options.runImpl) {
-      const result = await probeQuotaViaPty(account, {
+    if (!options.runImpl || options.ptyProbeImpl) {
+      const ptyProbeImpl = options.ptyProbeImpl ?? probeQuotaViaPty;
+      const result = await ptyProbeImpl(account, {
         env,
         baseEnv,
         timeoutMs,
         startupDelayMs
       });
-      return quotaResult(account, result.raw, result.timedOut, result.exitCode);
+      if (transport === 'pty' || !isPtyUnavailable(result)) {
+        return quotaResult(account, result.raw, result.timedOut, result.exitCode);
+      }
+      warnOnPtyFallback();
     }
   }
 
-  const runOptions: RunOptions = {
+  if (transport === 'pty') {
+    return {
+      account,
+      status: 'error',
+      summary: {},
+      rawRedacted: 'PTY unavailable and print fallback disabled.',
+      exitCode: null
+    };
+  }
+
+  const result = await runImpl('devin', ['--print', '/usage'], {
     env,
     timeoutMs
-  };
+  });
+  return quotaResultFromRun(account, result);
+}
 
-  const result = await runImpl('devin', ['--print', '/usage'], runOptions);
+function isPtyUnavailable(result: QuotaPtyProbeResult): boolean {
+  return !result.timedOut && result.exitCode === null && /^PTY unavailable:/i.test(result.raw.trim());
+}
+
+let ptyFallbackWarningEmitted = false;
+function warnOnPtyFallback(): void {
+  if (ptyFallbackWarningEmitted) return;
+  ptyFallbackWarningEmitted = true;
+  process.stderr.write('dsw: warning: PTY quota probe unavailable; falling back to devin --print /usage.\n');
+}
+
+function quotaResultFromRun(account: Account, result: Awaited<ReturnType<typeof runCapture>>): AccountQuota {
   const raw = `${result.stdout}\n${result.stderr}`;
   const rawRedacted = redactText(raw).trim();
   const notLoggedIn = /not logged in/i.test(raw);
