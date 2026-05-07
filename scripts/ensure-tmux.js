@@ -13,6 +13,11 @@ function main() {
     return;
   }
 
+  if (process.env.DSW_INSTALL_TMUX !== '1') {
+    warnAutoInstallOptIn();
+    return;
+  }
+
   const installer = detectInstaller();
   if (!installer) {
     warnManualInstall();
@@ -56,6 +61,12 @@ function sudoOrRoot(parts) {
   }
   if (hasCommand('sudo')) return { command: 'sudo', args: parts };
   return null;
+}
+
+function warnAutoInstallOptIn() {
+  console.warn('[dsw] tmux not found. `dsw quota` requires tmux.');
+  console.warn('[dsw] To auto-install tmux during npm install, re-run with DSW_INSTALL_TMUX=1.');
+  console.warn('[dsw] Or install manually: macOS `brew install tmux`, Debian/Ubuntu `sudo apt-get install -y tmux`.');
 }
 
 function warnManualInstall() {

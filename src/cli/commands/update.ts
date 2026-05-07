@@ -4,7 +4,6 @@ import path from 'node:path';
 
 interface PackageJson {
   name?: string;
-  private?: boolean;
   version?: string;
 }
 
@@ -12,16 +11,17 @@ export interface UpdateCommandOptions {
   dryRun?: boolean;
 }
 
+const GIT_UPDATE_STEPS = [
+  { command: 'git', args: ['pull', '--ff-only'] },
+  { command: 'npm', args: ['install'] },
+  { command: 'npm', args: ['run', 'build'] }
+];
+
 export async function runUpdate(options: UpdateCommandOptions = {}): Promise<void> {
   const packageRoot = findPackageRoot(__dirname);
   const packageJson = readPackageJson(packageRoot);
-  const commands = fs.existsSync(path.join(packageRoot, '.git'))
-    ? [
-        { command: 'git', args: ['pull', '--ff-only'] },
-        { command: 'npm', args: ['install'] },
-        { command: 'npm', args: ['run', 'build'] }
-      ]
-    : npmInstallCommands(packageJson);
+  const isGitCheckout = fs.existsSync(path.join(packageRoot, '.git'));
+  const commands = isGitCheckout ? GIT_UPDATE_STEPS : npmInstallCommands(packageJson);
 
   if (options.dryRun) {
     for (const step of commands) {
@@ -43,9 +43,8 @@ export async function runUpdate(options: UpdateCommandOptions = {}): Promise<voi
 }
 
 function npmInstallCommands(packageJson: PackageJson): Array<{ command: string; args: string[] }> {
-  if (!packageJson.name) throw new Error('Cannot update: package.json is missing a package name.');
-  if (packageJson.private) {
-    throw new Error('Cannot update from npm because this installed package is marked private.');
+  if (!packageJson.name) {
+    throw new Error('Cannot update: package.json is missing a package name.');
   }
   return [{ command: 'npm', args: ['install', '-g', `${packageJson.name}@latest`] }];
 }
