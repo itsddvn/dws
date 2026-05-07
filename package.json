@@ -1,6 +1,6 @@
 {
   "name": "@itsddvn/dsw",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Devin CLI account switcher: rotate between accounts and run devin under isolated profiles.",
   "repository": {
     "type": "git",
@@ -16,6 +16,7 @@
   "files": [
     "bin",
     "dist/src",
+    "scripts/postinstall-node-pty.cjs",
     "README.md",
     "package.json"
   ],
@@ -27,6 +28,7 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "prepack": "npm run build",
+    "postinstall": "node scripts/postinstall-node-pty.cjs",
     "dev": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",

@@ -116,11 +116,19 @@ function quotaResult(account: Account, raw: string, timedOut: boolean, exitCode:
   const exhausted = /quota has been exhausted|quota exhausted/i.test(raw);
   const summary = parseQuotaSummary(raw);
   const zeroRemaining = parsePercent(summary.remainingPercent) === 0;
-  if (!timedOut) warnOnUnparseable(account, exitCode, notLoggedIn, exhausted, summary);
+  const parsedQuota = summaryHasUsableFields(summary);
+  if (!timedOut || parsedQuota) warnOnUnparseable(account, exitCode, notLoggedIn, exhausted, summary);
 
   return {
     account,
-    status: exhausted || zeroRemaining ? 'exhausted' : timedOut ? 'timeout' : exitCode === 0 && !notLoggedIn ? 'ok' : 'error',
+    status:
+      exhausted || zeroRemaining
+        ? 'exhausted'
+        : timedOut && !parsedQuota
+          ? 'timeout'
+          : (exitCode === 0 || parsedQuota) && !notLoggedIn
+            ? 'ok'
+            : 'error',
     summary,
     rawRedacted,
     exitCode
@@ -204,10 +212,15 @@ export function quotaDiagnostic(output: string): string {
 
 function stripTerminalControls(value: string): string {
   return value
+    // eslint-disable-next-line no-control-regex
     .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/\x1B[()][0-?]*[ -/]*[@-~]/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/\x1B[=>78DEHMNOPc]/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 

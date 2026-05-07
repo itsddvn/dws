@@ -19,11 +19,12 @@ dsw doctor
 `npm install -g @itsddvn/dsw@latest --include=optional`).
 
 `dsw quota` and interactive auto-rotate require the native `node-pty` package.
-If `dsw doctor` reports `node-pty` as unavailable, repair the global install:
+`dsw` attempts to rebuild `node-pty` during install and update. If
+`dsw doctor` still reports `node-pty` as unavailable, repair the global install:
 
 ```bash
 npm install -g @itsddvn/dsw@latest --include=optional
-npm rebuild -g node-pty --build-from-source
+npm rebuild node-pty --foreground-scripts
 dsw doctor
 ```
 

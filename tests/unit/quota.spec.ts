@@ -198,6 +198,28 @@ Quota resets May 7, 3:00 PM (UTC+7).
     expect(calls).toEqual([]);
   });
 
+  it('accepts parsed headline-only PTY output even when the process does not exit before timeout', async () => {
+    const quota = await readQuotaForAccount(makeAccount(), {
+      ptyProbeImpl: async () => ({
+        raw: `
+  ⠀⠛⠿⠟⠃⣴⣾⣶⡾⠛⠿⠟⠃  v2026.5.5-0
+  ❭ /usage
+  No credits or ACUs consumed yet in this session.
+  Trial · 91% remaining (resets in 2d 15h)
+`,
+        timedOut: true,
+        exitCode: null
+      })
+    });
+
+    expect(quota.status).toBe('ok');
+    expect(quota.summary).toMatchObject({
+      tier: 'Trial',
+      remainingPercent: '91%',
+      resetsIn: '2d 15h'
+    });
+  });
+
   it('can skip profile runtime preparation for rotate-confirm validation', async () => {
     const sandbox = createSandbox();
     try {

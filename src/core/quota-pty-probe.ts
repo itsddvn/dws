@@ -33,6 +33,7 @@ function runProbe(pty: PtyModule, account: Account, options: QuotaPtyProbeOption
     let raw = '';
     let finished = false;
     let exitCode: number | null = null;
+    let quotaSignalTimer: NodeJS.Timeout | null = null;
     const term = pty.spawn('devin', [], {
       name: 'xterm-256color',
       cols: 120,
@@ -51,13 +52,15 @@ function runProbe(pty: PtyModule, account: Account, options: QuotaPtyProbeOption
       finished = true;
       clearTimeout(startupTimer);
       clearTimeout(deadlineTimer);
+      if (quotaSignalTimer) clearTimeout(quotaSignalTimer);
       try {
         term.write('/exit\r');
         term.kill();
       } catch {
         // Best effort cleanup.
       }
-      resolve({ raw: redactText(raw), timedOut, exitCode: exitCode ?? (hasQuotaSignal(raw) ? 0 : null) });
+      const parsedExitCode = hasDetailedQuotaSignal(raw) || hasQuotaHeadline(raw) ? 0 : null;
+      resolve({ raw: redactText(raw), timedOut, exitCode: exitCode ?? parsedExitCode });
     };
 
     const startupTimer = setTimeout(() => {
@@ -73,17 +76,27 @@ function runProbe(pty: PtyModule, account: Account, options: QuotaPtyProbeOption
 
     term.onData((chunk) => {
       raw += chunk;
-      if (hasQuotaSignal(raw)) finish(false);
+      if (hasDetailedQuotaSignal(raw)) {
+        finish(false);
+        return;
+      }
+      if (hasQuotaHeadline(raw) && !quotaSignalTimer) {
+        quotaSignalTimer = setTimeout(() => finish(false), 250);
+      }
     });
     term.onExit(({ exitCode: code }) => {
       exitCode = code;
-      if (!hasQuotaSignal(raw)) finish(false);
+      if (!hasDetailedQuotaSignal(raw) && !hasQuotaHeadline(raw)) finish(false);
     });
   });
 }
 
-function hasQuotaSignal(output: string): boolean {
+function hasDetailedQuotaSignal(output: string): boolean {
   return /Quota used:|Quota resets|quota has been exhausted|quota exhausted|not logged in/i.test(output);
+}
+
+function hasQuotaHeadline(output: string): boolean {
+  return /(?:^|\n).+?\s*(?:\u00b7|\||-)\s*\d+%\s+remaining(?:\s+\(resets in [^)]+\))?/i.test(output);
 }
 
 function messageFor(error: unknown): string {
