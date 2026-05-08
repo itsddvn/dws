@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import packageJson from '../../package.json';
 import { runAdd } from './commands/add';
 import { runDefault } from './commands/default';
 import { runDoctor } from './commands/doctor';
@@ -17,7 +18,7 @@ function buildProgram(): Command {
   program
     .name('dsw')
     .description('Devin CLI account switcher: rotate between accounts and run devin under each.')
-    .version('0.4.6');
+    .version(packageJson.version);
 
   program.addHelpText(
     'after',

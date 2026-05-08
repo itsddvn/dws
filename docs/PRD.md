@@ -208,7 +208,7 @@ Project archetype: **CLI Tool**
 | 2 | Should the JSON account store create DATABASE.md? | Skip DATABASE.md and document the JSON store in PRD/SRS/ARCHITECTURE. | 2026-05-07 | User said to ignore database docs because it is working as JSON. |
 | 3 | Should Devin CLI be in EXTERNAL_DOCS? | Include Devin CLI as an external dependency. | 2026-05-07 | User confirmed. |
 | 4 | Who owns the docs? | `itsddvn`. | 2026-05-07 | User provided owner. |
-| 5 | Which project version source wins? | Follow `package.json` version `0.4.6`. | 2026-05-07 | `package.json` and lock-file root metadata now match. |
+| 5 | Which project version source wins? | Follow `package.json` version `0.4.7`. | 2026-05-07 | `package.json` and lock-file root metadata now match. |
 | 6 | How should a specific account be selected? | Add `dsw use <name> [args...]` to bypass rotation while preserving profile isolation. | 2026-05-07 | User requested direct account selection. |
 | 7 | How should node-pty be provided? | Treat node-pty as an optional npm dependency and report availability through `dsw doctor`. | 2026-05-07 | Avoids operating-system package manager side effects during npm install. |
 | 8 | How should `dsw` avoid exhausted accounts? | Check all ready accounts before selection and pick the account with maximum remaining quota. | 2026-05-07 | User requested quota-first maximum-remaining selection before running credentials. |

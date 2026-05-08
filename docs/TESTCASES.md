@@ -80,7 +80,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Capture stdout and exit code.
 3. Assert exit code 0 and commands are present.
 4. Run version output and compare to package version.
-**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.6`.
+**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.7`.
 **Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Tracks the supported command surface.
 

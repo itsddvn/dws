@@ -33,7 +33,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | `TS-SEC-09` | Credential process | Devin CLI | External binary on `PATH` | Adopted | `README.md:14`, `src/core/auth.ts:35` |
 | `TS-DATA-10` | Persistence | Local JSON file | Store file version 1 | Adopted | `src/core/store.ts:18` |
 | `TS-INFRA-11` | Terminal automation | node-pty | External binary on `PATH` | Adopted | `README.md:14`, `node-pty optional dependency:1`, `src/core/quota.ts:1` |
-| `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.6` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
+| `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.7` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
 
 ## 4. Detail by Choice
 
@@ -222,7 +222,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 ### TS-PKG-12 npm Package
 
 **Layer:** Distribution
-**Version (pinned):** `@itsddvn/dsw@0.4.6`
+**Version (pinned):** `@itsddvn/dsw@0.4.7`
 **Lifecycle:** Adopted
 **License:** Public npm package; source repository license is not declared in `package.json`.
 **Lock file ref:** `package.json:2`, `package.json:3`, `package.json:13`, `package.json:16`, `package-lock.json:2`
