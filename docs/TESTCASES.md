@@ -1,9 +1,9 @@
 # Test Cases - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** SRS v1.3.0, USECASES v1.3.0, `tests/`
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** SRS v1.4.0, USECASES v1.4.0, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -51,6 +51,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 | `TC-RUN-003` | CLI forwards Devin args | integration | P0 | `FR-RUN-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
 | `TC-RUN-004` | Specific account command forwards Devin args | integration | P0 | `FR-RUN-004`, `UC-RUN-03` | Implemented |
 | `TC-RUN-005` | Quota cache persistence, TTL, bypass, and invalidation | unit | P0 | `FR-RUN-006`, `NFR-REL-003`, `UC-RUN-01`, `UC-RUN-02` | Implemented |
+| `TC-RUN-006` | Rate-limit continue retries before account switching | unit | P0 | `FR-RUN-007`, `UC-RUN-01` | Implemented |
 | `TC-PROF-001` | App path resolution | unit | P0 | `FR-PROF-004` | Implemented |
 | `TC-PROF-002` | Profile runtime symlink and config sync | unit | P0 | `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` | Implemented |
 | `TC-PROF-003` | Profile org id reader | unit | P1 | `FR-PROF-005` | Implemented |
@@ -80,7 +81,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Capture stdout and exit code.
 3. Assert exit code 0 and commands are present.
 4. Run version output and compare to package version.
-**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.7`.
+**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.8`.
 **Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Tracks the supported command surface.
 
@@ -254,6 +255,24 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 **Expected Result:** Fresh entries are reused, stale entries are rechecked, corrupt cache is ignored, and invalidation removes only the selected account.
 **Implementation:** `tests/unit/quota-cache.spec.ts:39`.
 **Notes:** Covers local quota cache policy for default execution.
+
+#### `TC-RUN-006` Rate-limit continue retries before account switching
+
+**Type:** unit
+**Priority:** P0
+**Related:** `FR-RUN-007`, `UC-RUN-01`
+**Component under test:** `C-04`
+**Preconditions:** Fake PTY module and fake timers are active.
+**Test Data:** Devin output containing "Rate limit exceeded" and session id `session-1`.
+**Steps:**
+1. Feed rate-limit output into the PTY runner.
+2. Advance the retry delay.
+3. Assert the first three triggers spawn `devin --continue`.
+4. Feed a fourth rate-limit output.
+5. Assert account rotation is invoked and resumes the tracked session.
+**Expected Result:** Temporary rate limits retry through `devin --continue`; account switching happens only after three failed continue attempts.
+**Implementation:** `tests/unit/output-watcher.spec.ts`, `tests/unit/pty-runner.spec.ts`, `tests/unit/rotate-engine.spec.ts`.
+**Notes:** Prevents temporary tool-call rate limits from causing unnecessary account switches.
 
 ### 6.5 PROF
 
@@ -474,6 +493,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `FR-RUN-004` | `TC-RUN-004` | no |
 | `FR-RUN-005` | `TC-OPS-003` | no |
 | `FR-RUN-006` | `TC-RUN-005`, `TC-OPS-003` | no |
+| `FR-RUN-007` | `TC-RUN-006` | no |
 | `FR-PROF-001` | `TC-PROF-002`, `TC-RUN-003` | no |
 | `FR-PROF-002` | `TC-PROF-002` | no |
 | `FR-PROF-003` | `TC-PROF-002` | no |
@@ -511,7 +531,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `UC-AUTH-02` | `TC-AUTH-001` | no |
 | `UC-AUTH-03` | `TC-AUTH-002` | no |
 | `UC-ACC-02` | `TC-ACC-002` | no |
-| `UC-RUN-01` | `TC-RUN-001`, `TC-RUN-003`, `TC-RUN-005` | no |
+| `UC-RUN-01` | `TC-RUN-001`, `TC-RUN-003`, `TC-RUN-005`, `TC-RUN-006` | no |
 | `UC-RUN-02` | `TC-RUN-002`, `TC-RUN-003`, `TC-RUN-005` | no |
 | `UC-RUN-03` | `TC-RUN-004` | no |
 | `UC-OPS-04` | `TC-OPS-003`, `TC-RUN-005` | no |
@@ -545,6 +565,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `TC-RUN-003` | `FR-RUN-003`, `FR-CLI-001` | `NFR-PERF-001`, `NFR-USE-001` | `UC-RUN-01`, `UC-RUN-02` | `BR-OPS-01` |
 | `TC-RUN-004` | `FR-RUN-004`, `FR-RUN-003` | `NFR-USE-001` | `UC-RUN-03` | `BR-AUTH-01`, `BR-OPS-01` |
 | `TC-RUN-005` | `FR-RUN-006` | `NFR-REL-003` | `UC-RUN-01`, `UC-RUN-02`, `UC-OPS-04` | `BR-DATA-04` |
+| `TC-RUN-006` | `FR-RUN-007` | none | `UC-RUN-01` | `BR-AUTH-01`, `BR-OPS-01` |
 | `TC-PROF-001` | `FR-PROF-004` | none | none | `BR-DATA-01` |
 | `TC-PROF-002` | `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003` | `NFR-SEC-001` | `UC-RUN-01` | `BR-SEC-01`, `BR-SEC-02`, `BR-DATA-03` |
 | `TC-PROF-003` | `FR-PROF-005` | none | none | `BR-SEC-02` |
@@ -572,6 +593,7 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | `TC-RUN-003` | `C-01`, `C-04`, `C-05` |
 | `TC-RUN-004` | `C-01`, `C-04`, `C-05` |
 | `TC-RUN-005` | `C-02`, `C-07` |
+| `TC-RUN-006` | `C-04`, `C-07` |
 | `TC-PROF-001` | `C-03` |
 | `TC-PROF-002` | `C-05` |
 | `TC-PROF-003` | `C-05` |
@@ -592,3 +614,4 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | 1.0.0 | 2026-05-07 | itsddvn | Initial test-case catalog extracted from Vitest suite. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection unit and integration coverage. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, helper utility, atomic write, exec, and expanded redaction coverage. |
+| 1.4.0 | 2026-05-08 | itsddvn | Added rate-limit retry and quota-switch regression coverage for `0.4.8`. |

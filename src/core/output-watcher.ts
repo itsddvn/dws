@@ -1,4 +1,4 @@
-export type OutputTrigger = 'quota' | 'recoverable-error';
+export type OutputTrigger = 'quota' | 'rate-limit' | 'recoverable-error';
 
 export class OutputWatcher {
   private lastTriggerAt = 0;
@@ -25,7 +25,8 @@ function stripAnsi(value: string): string {
 const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g');
 
 function detectTrigger(output: string): OutputTrigger | null {
-  if (/quota has been exhausted|quota exhausted|rate limit|usage limit/i.test(output)) return 'quota';
+  if (/rate limit/i.test(output)) return 'rate-limit';
+  if (/quota has been exhausted|quota exhausted|usage limit/i.test(output)) return 'quota';
   if (/something went wrong/i.test(output) && /internal error occurred/i.test(output)) return 'recoverable-error';
   return null;
 }

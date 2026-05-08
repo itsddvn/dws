@@ -1,9 +1,9 @@
 # Tech Stack - devin-switcher
 
-**Version:** 1.2.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** PRD v1.3.0, `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.build.json`, `vitest.config.ts`, `eslint.config.mjs`
+**Version:** 1.3.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** PRD v1.4.0, `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.build.json`, `vitest.config.ts`, `eslint.config.mjs`
 **Owner:** itsddvn
 
 ---
@@ -33,7 +33,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 | `TS-SEC-09` | Credential process | Devin CLI | External binary on `PATH` | Adopted | `README.md:14`, `src/core/auth.ts:35` |
 | `TS-DATA-10` | Persistence | Local JSON file | Store file version 1 | Adopted | `src/core/store.ts:18` |
 | `TS-INFRA-11` | Terminal automation | node-pty | External binary on `PATH` | Adopted | `README.md:14`, `node-pty optional dependency:1`, `src/core/quota.ts:1` |
-| `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.7` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
+| `TS-PKG-12` | Package distribution | npm scoped package | `@itsddvn/dsw@0.4.8` | Adopted | `package.json:2`, `package.json:3`, `package-lock.json:2` |
 
 ## 4. Detail by Choice
 
@@ -222,7 +222,7 @@ This document is the source of truth for technology choices in `devin-switcher`.
 ### TS-PKG-12 npm Package
 
 **Layer:** Distribution
-**Version (pinned):** `@itsddvn/dsw@0.4.7`
+**Version (pinned):** `@itsddvn/dsw@0.4.8`
 **Lifecycle:** Adopted
 **License:** Public npm package; source repository license is not declared in `package.json`.
 **Lock file ref:** `package.json:2`, `package.json:3`, `package.json:13`, `package.json:16`, `package-lock.json:2`
@@ -327,3 +327,4 @@ Forbidden licenses: none documented in code.
 | 1.1.0 | 2026-05-07 | itsddvn | Added node-pty as the terminal automation dependency for quota reporting. |
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield extraction from manifests and config files. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added npm package distribution, build-package config, and resolved lock metadata drift. |
+| 1.3.0 | 2026-05-08 | itsddvn | Updated npm package identity to `@itsddvn/dsw@0.4.8`. |

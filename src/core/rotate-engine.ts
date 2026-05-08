@@ -1,5 +1,5 @@
 import { readQuotaForAccount } from './quota';
-import { pickBestAccountByQuota } from './runner';
+import type { AccountQuota } from './quota';
 import type { Account, AccountStore } from './store';
 
 export interface RotateRequest {
@@ -46,9 +46,37 @@ export class RotateEngine {
           })
         )
       );
-      return { account: pickBestAccountByQuota(candidates, quotas) };
+      const account = pickBestAccountWithPositiveQuota(candidates, quotas);
+      return account ? { account } : { account: null, reason: 'không còn tài khoản nào còn đủ quota, vui lòng add thêm' };
     } finally {
       this.rotating = false;
     }
   }
+}
+
+function pickBestAccountWithPositiveQuota(accounts: Account[], quotas: AccountQuota[]): Account | null {
+  const quotaById = new Map(quotas.map((quota) => [quota.account.id, quota]));
+  return accounts
+    .map((account) => ({ account, remaining: parsePercent(quotaById.get(account.id)?.summary.remainingPercent) }))
+    .filter((candidate): candidate is { account: Account; remaining: number } => candidate.remaining !== null && candidate.remaining > 0)
+    .sort((left, right) => {
+      if (left.remaining !== right.remaining) return right.remaining - left.remaining;
+      return compareLeastRecentlyUsed(left.account, right.account);
+    })[0]?.account ?? null;
+}
+
+function parsePercent(value: string | undefined): number | null {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)%$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function compareLeastRecentlyUsed(left: Account, right: Account): number {
+  const leftLast = left.lastUsedAt ?? 0;
+  const rightLast = right.lastUsedAt ?? 0;
+  if (leftLast !== rightLast) return leftLast - rightLast;
+  if (left.createdAt !== right.createdAt) return left.createdAt - right.createdAt;
+  return left.name.localeCompare(right.name);
 }

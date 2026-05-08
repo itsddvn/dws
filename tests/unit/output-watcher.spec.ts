@@ -8,6 +8,12 @@ describe('OutputWatcher', () => {
     expect(watcher.push('Your daily usage quota has been exhausted.')).toBe('quota');
   });
 
+  it('detects rate limit output separately from exhausted quota', () => {
+    const watcher = new OutputWatcher();
+
+    expect(watcher.push('Permission denied: Rate limit exceeded. Your request was not processed.')).toBe('rate-limit');
+  });
+
   it('ignores non-exhausted quota status text', () => {
     const watcher = new OutputWatcher();
 

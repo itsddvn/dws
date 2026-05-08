@@ -1,16 +1,16 @@
 # Roadmap - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** PRD v1.3.0, SRS v1.3.0, TECHSTACK v1.2.0, ARCHITECTURE v1.3.0, TESTCASES v1.3.0
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** PRD v1.3.0, SRS v1.4.0, TECHSTACK v1.2.0, ARCHITECTURE v1.3.0, TESTCASES v1.4.0
 **Owner:** itsddvn
 
 ---
 
 ## 1. Today and Targets
 
-- **Today:** 2026-05-07.
+- **Today:** 2026-05-08.
 - **Alpha target:** 2026-05-07.
 - **Beta target:** 2026-05-08.
 - **GA target:** 2026-05-10.
@@ -112,7 +112,7 @@
 **Window:** 2026-05-07 -> 2026-05-07.
 **Goal:** Resolve package metadata drift, publish npm-ready metadata, and document quota cache behavior.
 **Workstreams:**
-- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.7`.
+- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.8`.
 - Build: ship runtime-only package contents from `dist/src`.
 - Runtime: add quota cache, quota skip env var, and cache TTL env var.
 - Installer: make node-pty auto-install opt-in.
@@ -127,12 +127,31 @@
 - [x] `npm pack --dry-run` includes runtime files only.
 - [x] Product docs reflect npm package, quota cache, and  policy.
 
+### M7 Rate-limit recovery release (completed)
+
+**Window:** 2026-05-08 -> 2026-05-08.
+**Goal:** Avoid unnecessary account switches when Devin reports temporary rate limits caused by too many tool calls.
+**Workstreams:**
+- Runtime: classify rate-limit output separately from exhausted quota.
+- Runtime: wait and run `devin --continue` up to three times before switching accounts.
+- Runtime: when switching is required, choose only an alternate account with positive parsed remaining quota.
+- Docs/release: bump npm package metadata to `0.4.8` and document the new recovery behavior.
+**Deliverables:**
+- `src/core/output-watcher.ts`.
+- `src/core/pty-runner.ts`.
+- `src/core/rotate-engine.ts`.
+- Updated tests, README, and `docs/*.md`.
+**Hard Exit Gate (all must pass):**
+- [x] Rate-limit watcher and PTY runner unit tests pass.
+- [x] Version references are aligned to `0.4.8`.
+- [x] Release verification commands pass.
+
 ## 3. ASCII Timeline
 
 ```text
 2026-05-06       2026-05-07       2026-05-08       2026-05-10
 |--M0--|--M1--|--M2--|--M3--|--M4--|--M5--|--M6--|
- done    done    done    docs    quota  node-pty   release
+ done    done    done    docs    quota  node-pty   release  rate-limit
 ```
 
 ## 4. Critical Path
@@ -165,7 +184,8 @@
 
 | Tag | Milestone | Date | Audience |
 |-----|-----------|------|----------|
-| 0.4.7 | Current npm/GitHub release with quota PTY install hardening and package metadata alignment | 2026-05-07 | npm/GitHub |
+| 0.4.8 | Current npm/GitHub release with rate-limit `--continue` recovery before quota-based account switching | 2026-05-08 | npm/GitHub |
+| 0.4.7 | Previous npm/GitHub release with quota PTY install hardening and package metadata alignment | 2026-05-07 | npm/GitHub |
 
 ## 8. Cadence
 
@@ -212,3 +232,4 @@ Lower-numbered doc wins ties. Update upstream first.
 | 1.0.0 | 2026-05-07 | itsddvn | Initial roadmap extracted from git history, current code, and user decisions. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated roadmap to include quota-aware automatic selection. |
 | 1.3.0 | 2026-05-07 | itsddvn | Marked package publication, quota cache, and  docs as completed for commit `49ceed6`. |
+| 1.4.0 | 2026-05-08 | itsddvn | Added completed `0.4.8` rate-limit recovery release milestone. |

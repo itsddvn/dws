@@ -1,9 +1,9 @@
 # Architecture - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** PRD v1.3.0, TECHSTACK v1.2.0, `src/`, `tests/`, `README.md`, `package.json`
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** PRD v1.4.0, TECHSTACK v1.3.0, `src/`, `tests/`, `README.md`, `package.json`
 **Owner:** itsddvn
 
 ---
@@ -108,17 +108,17 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 
 ### `C-04` Devin Auth and Runner Adapter
 
-**Responsibility:** Spawn Devin login/status/run commands under a profile environment and redact captured auth/status output.
+**Responsibility:** Spawn Devin login/status/run commands under a profile environment, handle interactive PTY auto-rotate, and redact captured auth/status output.
 **Type:** In-process adapter plus subprocess.
 **Owned data:** None; Devin writes credentials and runtime state.
 **Exposed interface:** `runDevinLogin`, `readAuthStatus`, `runDevinForAccount`.
 **Consumes:** External `devin` binary.
 **Tech:** `TS-LANG-01`, `TS-SEC-09`.
-**Source dir:** `src/core/auth.ts`, `src/core/runner.ts`, `src/core/profile-env.ts`, `src/util/exec.ts`, `src/util/redact.ts`.
+**Source dir:** `src/core/auth.ts`, `src/core/runner.ts`, `src/core/pty-runner.ts`, `src/core/output-watcher.ts`, `src/core/rotate-engine.ts`, `src/core/profile-env.ts`, `src/util/exec.ts`, `src/util/redact.ts`.
 **Process boundary:** `devin` child process.
 **Scaling:** One child process per invocation.
-**Failure mode:** Child error/exit code is returned or converted to command error.
-**Related FRs:** `FR-AUTH-001`, `FR-AUTH-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-004`.
+**Failure mode:** Child error/exit code is returned or converted to command error. Temporary rate limits wait before `devin --continue` retries; after three failed retries the runner switches only to an account with positive parsed quota.
+**Related FRs:** `FR-AUTH-001`, `FR-AUTH-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-004`, `FR-RUN-007`.
 **Related BR:** `BR-SEC-01`, `BR-AUTH-01`.
 
 ### `C-05` Shared Runtime Sync
@@ -163,7 +163,7 @@ All components run on the local host. Normal execution spawns `devin`; quota rep
 **Process boundary:** node-pty server/session plus Devin subprocess inside the pane.
 **Scaling:** One short-lived hidden PTY session per account during `dsw quota`.
 **Failure mode:** Per-account quota failures are reported without stopping the whole scan; node-pty absence is surfaced by doctor; unparseable success output emits one warning.
-**Related FRs:** `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`.
+**Related FRs:** `FR-RUN-005`, `FR-RUN-006`, `FR-RUN-007`, `FR-OPS-004`.
 **Related BR:** `BR-AUTH-01`, `BR-OPS-03`.
 
 ## 6. Data Flow
@@ -284,7 +284,7 @@ flowchart TB
 |---------|----------|------------------|
 | AuthN/Z | Delegated to Devin CLI; `dsw` isolates env paths. | `C-04`, `C-05` |
 | Observability | Terminal stdout/stderr only. | `C-01` |
-| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`, `DSW_QUOTA_TIMEOUT_MS`, `DSW_QUOTA_STARTUP_DELAY_MS`, XDG env during Devin subprocesses. | `C-03`, `C-05`, `C-07` |
+| Config | `DSW_DATA_HOME`, `DSW_CONFIG_HOME`, `DSW_SKIP_QUOTA`, `DSW_QUOTA_CACHE_TTL_MS`, `DSW_QUOTA_TIMEOUT_MS`, `DSW_QUOTA_STARTUP_DELAY_MS`, `DSW_RATE_LIMIT_RETRY_DELAY_MS`, XDG env during Devin subprocesses. | `C-03`, `C-04`, `C-05`, `C-07` |
 | Secrets | Credentials are written by Devin inside profile data dir; auth-like strings, API keys, and Bearer tokens are redacted in parser output. | `C-04`, `C-05` |
 | Healthchecks | `dsw doctor` checks paths, `devin --version`, and node-pty loader availability. | `C-01`, `C-04`, `C-07` |
 | Backpressure | Not applicable for a local synchronous CLI. | n/a |
@@ -426,10 +426,10 @@ flowchart TB
 | `C-01` | `FR-CLI-001`, `FR-CLI-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-004`, `FR-RUN-005`, `FR-OPS-001`, `FR-OPS-002`, `FR-OPS-004`, `FR-OPS-005` |
 | `C-02` | `FR-ACC-001`, `FR-ACC-002`, `FR-ACC-003`, `FR-ACC-004`, `FR-RUN-006` |
 | `C-03` | `FR-PROF-001`, `FR-PROF-004` |
-| `C-04` | `FR-AUTH-001`, `FR-AUTH-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-004` |
+| `C-04` | `FR-AUTH-001`, `FR-AUTH-002`, `FR-RUN-001`, `FR-RUN-002`, `FR-RUN-003`, `FR-RUN-004`, `FR-RUN-007` |
 | `C-05` | `FR-PROF-002`, `FR-PROF-003`, `FR-PROF-005` |
 | `C-06` | `FR-OPS-003`, `FR-OPS-004`, `FR-OPS-005` |
-| `C-07` | `FR-RUN-005`, `FR-RUN-006`, `FR-OPS-004`, `NFR-COMPAT-002` |
+| `C-07` | `FR-RUN-005`, `FR-RUN-006`, `FR-RUN-007`, `FR-OPS-004`, `NFR-COMPAT-002` |
 
 ### Components -> TECHSTACK
 
@@ -463,3 +463,4 @@ flowchart TB
 | 1.0.0 | 2026-05-07 | itsddvn | Initial brownfield architecture extraction from current code. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run flow and ADR for quota-aware selection. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package distribution ADR, helper modules, and current env/package concerns. |
+| 1.4.0 | 2026-05-08 | itsddvn | Documented rate-limit continue retry behavior before quota-based account switching. |

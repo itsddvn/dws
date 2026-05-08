@@ -154,6 +154,123 @@ describe('runDevinPtyForAccount', () => {
     }
   });
 
+  it('waits and runs devin --continue for a rate limit before switching accounts', async () => {
+    vi.useFakeTimers();
+    const sandbox = createSandbox();
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const accounts = [makeAccount('one'), makeAccount('two')];
+      const store = {
+        touchLastUsed: () => accounts[0]!
+      } as unknown as AccountStore;
+      const terms: FakePtyProcess[] = [];
+      const spawnedArgs: string[][] = [];
+      const ptyModule: PtyModule = {
+        spawn: (_file, args) => {
+          const term = new FakePtyProcess();
+          terms.push(term);
+          spawnedArgs.push(args);
+          return term;
+        }
+      };
+      const rotateEngine = {
+        rotate: vi.fn(async () => ({ account: accounts[1]! }))
+      };
+
+      const run = runDevinPtyForAccount(store, accounts[0]!, {
+        args: [],
+        appPaths: sandbox.paths,
+        baseEnv: sandbox.env,
+        autoRotate: true,
+        rateLimitRetryDelayMs: 60_000,
+        ptyModule,
+        rotateEngine
+      });
+
+      terms[0]!.emitData('Session ID: session-1\r\n');
+      terms[0]!.emitData('Permission denied: Rate limit exceeded. Please try again in about an hour.');
+      await vi.advanceTimersByTimeAsync(59_999);
+
+      expect(terms).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await flushAsync();
+
+      expect(terms).toHaveLength(2);
+      expect(spawnedArgs[1]).toEqual(['--continue']);
+      expect(rotateEngine.rotate).not.toHaveBeenCalled();
+
+      terms[1]!.emitExit(0);
+      await expect(run).resolves.toBe(0);
+    } finally {
+      vi.useRealTimers();
+      stdout.mockRestore();
+      stderr.mockRestore();
+      sandbox.cleanup();
+    }
+  });
+
+  it('switches by quota after three failed devin --continue rate-limit retries', async () => {
+    vi.useFakeTimers();
+    const sandbox = createSandbox();
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const accounts = [makeAccount('one'), makeAccount('two')];
+      const store = {
+        touchLastUsed: () => accounts[0]!
+      } as unknown as AccountStore;
+      const terms: FakePtyProcess[] = [];
+      const spawnedArgs: string[][] = [];
+      const ptyModule: PtyModule = {
+        spawn: (_file, args) => {
+          const term = new FakePtyProcess();
+          terms.push(term);
+          spawnedArgs.push(args);
+          return term;
+        }
+      };
+      const rotateEngine = {
+        rotate: vi.fn(async () => ({ account: accounts[1]! }))
+      };
+
+      const run = runDevinPtyForAccount(store, accounts[0]!, {
+        args: [],
+        appPaths: sandbox.paths,
+        baseEnv: sandbox.env,
+        autoRotate: true,
+        rateLimitRetryDelayMs: 60_000,
+        ptyModule,
+        rotateEngine
+      });
+
+      terms[0]!.emitData('Session ID: session-1\r\n');
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        terms[attempt - 1]!.emitData('Permission denied: Rate limit exceeded. Please try again in about an hour.');
+        await vi.advanceTimersByTimeAsync(60_000);
+        await flushAsync();
+        expect(terms).toHaveLength(attempt + 1);
+        expect(spawnedArgs[attempt]).toEqual(['--continue']);
+      }
+
+      terms[3]!.emitData('Permission denied: Rate limit exceeded. Please try again in about an hour.');
+      await flushAsync();
+
+      expect(terms).toHaveLength(5);
+      expect(rotateEngine.rotate).toHaveBeenCalledWith({ current: accounts[0], manual: true, sessionId: 'session-1' });
+      expect(spawnedArgs[4]).toEqual(['-r', 'session-1']);
+
+      terms[4]!.emitExit(0);
+      await expect(run).resolves.toBe(0);
+    } finally {
+      vi.useRealTimers();
+      stdout.mockRestore();
+      stderr.mockRestore();
+      sandbox.cleanup();
+    }
+  });
+
   it('writes stdin debug logs under the app data directory with private permissions', async () => {
     const sandbox = createSandbox();
     const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -224,4 +341,9 @@ async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<voi
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for predicate');
+}
+
+async function flushAsync(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }

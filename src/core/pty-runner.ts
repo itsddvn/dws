@@ -17,6 +17,7 @@ export interface RunDevinPtyOptions {
   appPaths?: AppPaths;
   baseEnv?: NodeJS.ProcessEnv;
   autoRotate: boolean;
+  rateLimitRetryDelayMs?: number;
   ptyModule?: PtyModule;
   rotateEngine?: Pick<RotateEngine, 'rotate'>;
 }
@@ -51,15 +52,20 @@ export async function runDevinPtyForAccount(
   });
   const capture = new PromptCapture();
   const rotateEngine = options.rotateEngine ?? new RotateEngine(store, baseEnv);
+  const rateLimitRetryDelayMs = options.rateLimitRetryDelayMs ?? numberFromEnv(baseEnv.DSW_RATE_LIMIT_RETRY_DELAY_MS, 60_000);
 
   return await new Promise((resolve) => {
     let finished = false;
     let activeGeneration = 0;
+    let rateLimitContinueAttempts = 0;
+    let rateLimitRecovering = false;
+    let rateLimitTimer: NodeJS.Timeout | null = null;
     let term = spawn(active, options.args);
 
     const finish = (code: number | null): void => {
       if (finished) return;
       finished = true;
+      if (rateLimitTimer) clearTimeout(rateLimitTimer);
       cleanupTerminal();
       persistProfileRuntime(active.id, appPaths, baseEnv);
       resolve(code);
@@ -80,7 +86,8 @@ export async function runDevinPtyForAccount(
         sessionId ??= parseSessionId(output);
         process.stdout.write(chunk);
         const trigger = watcher.push(chunk);
-        if (options.autoRotate && trigger) void rotate(trigger === 'recoverable-error');
+        if (options.autoRotate && trigger === 'rate-limit') void recoverRateLimit();
+        if (options.autoRotate && trigger && trigger !== 'rate-limit') void rotate(trigger === 'recoverable-error');
       });
       next.onExit(({ exitCode }) => {
         if (generation === activeGeneration) finish(exitCode);
@@ -100,12 +107,51 @@ export async function runDevinPtyForAccount(
       const previous = term;
       active = result.account;
       term = spawn(active, buildResumeArgs(sessionId, replay));
+      rateLimitContinueAttempts = 0;
       try {
         previous.kill();
       } catch {
         // The child may already be gone.
       }
       if (!replay) process.stderr.write('dsw: no safe single-line prompt to replay; resend manually if needed.\n');
+    }
+
+    async function recoverRateLimit(): Promise<void> {
+      if (rateLimitRecovering || finished) return;
+      rateLimitRecovering = true;
+      try {
+        if (rateLimitContinueAttempts < 3) {
+          rateLimitContinueAttempts += 1;
+          process.stderr.write(
+            `\ndsw: rate limit detected; waiting ${Math.ceil(rateLimitRetryDelayMs / 1000)}s before devin --continue ` +
+              `(attempt ${rateLimitContinueAttempts}/3).\n`
+          );
+          await waitForRateLimitRetry();
+          if (finished) return;
+          const previous = term;
+          term = spawn(active, ['--continue']);
+          try {
+            previous.kill();
+          } catch {
+            // The child may already be gone.
+          }
+          return;
+        }
+
+        process.stderr.write('\ndsw: rate limit still failing after 3 devin --continue attempts; checking quota before switching accounts.\n');
+        await rotate(true);
+      } finally {
+        rateLimitRecovering = false;
+      }
+    }
+
+    function waitForRateLimitRetry(): Promise<void> {
+      return new Promise((done) => {
+        rateLimitTimer = setTimeout(() => {
+          rateLimitTimer = null;
+          done();
+        }, rateLimitRetryDelayMs);
+      });
     }
 
     const onStdinData = (chunk: Buffer): void => {
@@ -135,6 +181,12 @@ export async function runDevinPtyForAccount(
 
 function buildResumeArgs(sessionId: string, replay: string | null): string[] {
   return replay ? ['-r', sessionId, '--', replay] : ['-r', sessionId];
+}
+
+function numberFromEnv(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function makeStdinDebugger(baseEnv: NodeJS.ProcessEnv, appPaths: AppPaths): ((data: string) => void) | undefined {

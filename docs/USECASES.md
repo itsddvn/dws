@@ -1,9 +1,9 @@
 # Use Cases - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** PRD v1.3.0, SRS v1.3.0
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** PRD v1.4.0, SRS v1.4.0
 **Owner:** itsddvn
 
 ---
@@ -157,8 +157,10 @@
 - **Extensions:**
   - 1a. No accounts exist -> CLI instructs operator to run `dsw add <name>`.
   - 2a. No eligible accounts exist -> CLI instructs operator to run `dsw login <name>`.
+  - 6a. Devin reports a temporary rate limit -> CLI waits 60 seconds, runs `devin --continue`, retries this path up to three times, then checks other account quotas and switches to the highest remaining quota account only if retries still fail.
+  - 6b. Rate-limit retries fail and no alternate account has positive parsed quota -> CLI prints "không còn tài khoản nào còn đủ quota, vui lòng add thêm".
 - **Postconditions:** Selected account has updated `lastUsedAt`.
-- **Related SRS:** `FR-RUN-001`, `FR-RUN-003`, `FR-RUN-006`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003`.
+- **Related SRS:** `FR-RUN-001`, `FR-RUN-003`, `FR-RUN-006`, `FR-RUN-007`, `FR-PROF-001`, `FR-PROF-002`, `FR-PROF-003`.
 - **Related BR:** `BR-AUTH-01`, `BR-SEC-01`, `BR-DATA-03`, `BR-DATA-04`.
 - **Route:** n/a.
 
@@ -341,3 +343,4 @@ All selected use cases are detailed in section 3.
 | 1.0.0 | 2026-05-07 | itsddvn | Initial use-case extraction from CLI commands and tests. |
 | 1.2.0 | 2026-05-07 | itsddvn | Updated automatic run use cases for quota-aware selection. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, and  use-case details. |
+| 1.4.0 | 2026-05-08 | itsddvn | Added rate-limit continue retry extensions before quota-based switching. |

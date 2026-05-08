@@ -1,9 +1,9 @@
 # Software Requirements Specification - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** PRD v1.3.0, BusinessRules v1.3.0, ARCHITECTURE v1.3.0
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** PRD v1.4.0, BusinessRules v1.3.0, ARCHITECTURE v1.3.0
 **Owner:** itsddvn
 
 ---
@@ -180,6 +180,14 @@ See PRD section 1.4 for account, profile, ready account, LRU, and shared CLI sta
 **Acceptance:** Quota cache unit tests cover persistence, freshness, TTL expiry, bypass behavior, corrupt cache tolerance, and entry invalidation.
 **Components:** `C-02`, `C-07`.
 **Related BR:** `BR-DATA-04`.
+
+#### FR-RUN-007 Rate-Limit Continue Recovery
+**Statement:** System SHALL handle Devin rate-limit output by waiting before `devin --continue`, retrying up to three times, and only then switching accounts by highest positive parsed quota.
+**Input:** Interactive Devin PTY output containing a rate-limit signature, session id, configured accounts, and `DSW_RATE_LIMIT_RETRY_DELAY_MS`.
+**Output:** `devin --continue` retry attempts, resumed session under the same account, or quota-based switch after three failed retries.
+**Acceptance:** Unit tests verify rate-limit output is not treated as exhausted quota, the first three rate-limit triggers run `devin --continue`, and the fourth trigger switches through the rotate engine.
+**Components:** `C-04`, `C-07`.
+**Related BR:** `BR-AUTH-01`, `BR-OPS-01`.
 
 ### 3.5 Profiles (`FR-PROF-*`)
 
@@ -358,6 +366,7 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | `FR-RUN-004` | `F4` | `BR-AUTH-01`, `BR-OPS-01` |
 | `FR-RUN-005` | `F4.1` | `BR-AUTH-01`, `BR-OPS-03` |
 | `FR-RUN-006` | `F4` | `BR-DATA-04` |
+| `FR-RUN-007` | `F4` | `BR-AUTH-01`, `BR-OPS-01` |
 | `FR-PROF-001` | `F5` | `BR-SEC-01` |
 | `FR-PROF-002` | `F5` | `BR-DATA-03` |
 | `FR-PROF-003` | `F5` | `BR-SEC-02`, `BR-DATA-03` |
@@ -389,3 +398,4 @@ System SHALL provide `dsw doctor` as the primary diagnostic surface. Acceptance:
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, quota reporting, node-pty install check, and node-pty diagnostics requirements. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware default account selection requirements. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package publication, node-pty opt-in install, and expanded redaction requirements. |
+| 1.4.0 | 2026-05-08 | itsddvn | Added rate-limit `devin --continue` retry requirements before account switching. |

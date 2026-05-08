@@ -1,7 +1,7 @@
 # Release Notes and Go-Live Checklist - devin-switcher
 
-**Version:** 1.0.0
-**Date:** 2026-05-07
+**Version:** 1.1.0
+**Date:** 2026-05-08
 **Status:** Active
 **Owner:** itsddvn
 
@@ -116,4 +116,5 @@ After publish, record:
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
+| 1.1.0 | 2026-05-08 | itsddvn | Recorded the `0.4.8` go-live release scope for rate-limit retry recovery before account switching. |
 | 1.0.0 | 2026-05-07 | itsddvn | Added mandatory go-live release order and version alignment checklist. |

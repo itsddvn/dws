@@ -1,9 +1,9 @@
 # Product Requirements Document - devin-switcher
 
-**Version:** 1.3.0
-**Date:** 2026-05-07
-**Status:** Draft
-**Source:** Extracted from commit `3c08cdc`, updated through commit `49ceed6`, `README.md`, `package.json`, `package-lock.json`, `src/`, `tests/`
+**Version:** 1.4.0
+**Date:** 2026-05-08
+**Status:** Active
+**Source:** Extracted from commit `3c08cdc`, updated through release `0.4.8`, `README.md`, `package.json`, `package-lock.json`, `src/`, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -208,12 +208,13 @@ Project archetype: **CLI Tool**
 | 2 | Should the JSON account store create DATABASE.md? | Skip DATABASE.md and document the JSON store in PRD/SRS/ARCHITECTURE. | 2026-05-07 | User said to ignore database docs because it is working as JSON. |
 | 3 | Should Devin CLI be in EXTERNAL_DOCS? | Include Devin CLI as an external dependency. | 2026-05-07 | User confirmed. |
 | 4 | Who owns the docs? | `itsddvn`. | 2026-05-07 | User provided owner. |
-| 5 | Which project version source wins? | Follow `package.json` version `0.4.7`. | 2026-05-07 | `package.json` and lock-file root metadata now match. |
+| 5 | Which project version source wins? | Follow `package.json` version `0.4.8`. | 2026-05-08 | `package.json` and lock-file root metadata now match. |
 | 6 | How should a specific account be selected? | Add `dsw use <name> [args...]` to bypass rotation while preserving profile isolation. | 2026-05-07 | User requested direct account selection. |
 | 7 | How should node-pty be provided? | Treat node-pty as an optional npm dependency and report availability through `dsw doctor`. | 2026-05-07 | Avoids operating-system package manager side effects during npm install. |
 | 8 | How should `dsw` avoid exhausted accounts? | Check all ready accounts before selection and pick the account with maximum remaining quota. | 2026-05-07 | User requested quota-first maximum-remaining selection before running credentials. |
 | 9 | How should repeated quota checks be managed? | Cache quota summaries in `~/.dsw/quota-cache.json`, respect `DSW_QUOTA_CACHE_TTL_MS`, and invalidate the selected account after a run. | 2026-05-07 | Avoids slow node-pty quota checks on every automatic invocation while preserving freshness after use. |
 | 10 | How is the CLI distributed? | Publish as public npm package `@itsddvn/dsw` with `dsw` binary and runtime-only package files. | 2026-05-07 | Enables `npm install -g @itsddvn/dsw` and npm-backed `dsw update`. |
+| 11 | How should temporary rate limits be handled? | Wait and run `devin --continue` up to three times before switching accounts by positive parsed quota. | 2026-05-08 | Prevents temporary tool-call rate limits from causing unnecessary account switches. |
 
 ## Change Log
 
@@ -223,3 +224,4 @@ Project archetype: **CLI Tool**
 | 1.1.0 | 2026-05-07 | itsddvn | Added direct account selection, hidden PTY quota reporting, node-pty install dependency handling, and doctor node-pty validation. |
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection for default execution. |
 | 1.3.0 | 2026-05-07 | itsddvn | Aligned package publication, quota cache, , and release metadata with commit `49ceed6`. |
+| 1.4.0 | 2026-05-08 | itsddvn | Added `0.4.8` rate-limit recovery behavior and package version decision. |

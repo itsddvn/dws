@@ -71,6 +71,12 @@ least-recently-used as the tie-breaker. It skips accounts that need login and
 accounts with exhausted or zero remaining quota when another usable account is
 available, then updates `lastUsedAt` after selection.
 
+During an interactive auto-rotate session, `dsw` treats Devin rate-limit errors
+as temporary first: it waits 60 seconds and resumes with `devin --continue`.
+Only after three failed `--continue` attempts does it check other accounts and
+switch to the account with the highest parsed remaining quota. If none have
+quota left, it prints that no account has enough quota and asks you to add one.
+
 `dsw next` has been removed. The token is reserved and prints a clear removal
 error instead of being forwarded to Devin.
 
@@ -119,6 +125,7 @@ you can inspect or back up).
 | `DSW_QUOTA_CACHE_TTL_MS`     | Override the quota cache TTL (default 5 minutes). Set `0` to always re-fetch.               |
 | `DSW_QUOTA_TIMEOUT_MS`       | Override the per-account quota timeout (default 15s).                                       |
 | `DSW_QUOTA_STARTUP_DELAY_MS` | Override how long `dsw quota` waits for the Devin REPL to settle (default 4s).              |
+| `DSW_RATE_LIMIT_RETRY_DELAY_MS` | Override the delay before each rate-limit `devin --continue` retry (default 60000).      |
 | `DSW_DISABLE_PTY=1`          | Force the legacy subprocess runner and disable interactive auto-rotate.                    |
 
 `dsw` caches quota results under
