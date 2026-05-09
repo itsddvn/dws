@@ -3,7 +3,7 @@
 **Version:** 1.4.0
 **Date:** 2026-05-08
 **Status:** Active
-**Source:** Extracted from commit `3c08cdc`, updated through release `0.4.8`, `README.md`, `package.json`, `package-lock.json`, `src/`, `tests/`
+**Source:** Extracted from commit `3c08cdc`, updated through release `0.4.9`, `README.md`, `package.json`, `package-lock.json`, `src/`, `tests/`
 **Owner:** itsddvn
 
 ---
@@ -208,7 +208,7 @@ Project archetype: **CLI Tool**
 | 2 | Should the JSON account store create DATABASE.md? | Skip DATABASE.md and document the JSON store in PRD/SRS/ARCHITECTURE. | 2026-05-07 | User said to ignore database docs because it is working as JSON. |
 | 3 | Should Devin CLI be in EXTERNAL_DOCS? | Include Devin CLI as an external dependency. | 2026-05-07 | User confirmed. |
 | 4 | Who owns the docs? | `itsddvn`. | 2026-05-07 | User provided owner. |
-| 5 | Which project version source wins? | Follow `package.json` version `0.4.8`. | 2026-05-08 | `package.json` and lock-file root metadata now match. |
+| 5 | Which project version source wins? | Follow `package.json` version `0.4.9`. | 2026-05-09 | `package.json` and lock-file root metadata now match. |
 | 6 | How should a specific account be selected? | Add `dsw use <name> [args...]` to bypass rotation while preserving profile isolation. | 2026-05-07 | User requested direct account selection. |
 | 7 | How should node-pty be provided? | Treat node-pty as an optional npm dependency and report availability through `dsw doctor`. | 2026-05-07 | Avoids operating-system package manager side effects during npm install. |
 | 8 | How should `dsw` avoid exhausted accounts? | Check all ready accounts before selection and pick the account with maximum remaining quota. | 2026-05-07 | User requested quota-first maximum-remaining selection before running credentials. |
@@ -225,3 +225,4 @@ Project archetype: **CLI Tool**
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection for default execution. |
 | 1.3.0 | 2026-05-07 | itsddvn | Aligned package publication, quota cache, , and release metadata with commit `49ceed6`. |
 | 1.4.0 | 2026-05-08 | itsddvn | Added `0.4.8` rate-limit recovery behavior and package version decision. |
+| 1.5.0 | 2026-05-09 | Codex | Updated package decision to `0.4.9` for shared Trial-only selection and interactive prompt fixes. |

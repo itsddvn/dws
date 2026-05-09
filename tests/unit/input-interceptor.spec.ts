@@ -9,10 +9,11 @@ describe('InputInterceptor', () => {
     expect(interceptor.push('ate\r')).toEqual({ passThrough: '', localEcho: 'ate', rotate: true });
   });
 
-  it('captures manual rotate commands with leading prompt whitespace', () => {
+  it('passes leading whitespace through immediately', () => {
     const interceptor = new InputInterceptor();
 
-    expect(interceptor.push('  :rotate\r')).toEqual({ passThrough: '', localEcho: '  :rotate', rotate: true });
+    expect(interceptor.push('  ')).toEqual({ passThrough: '  ', localEcho: '', rotate: false });
+    expect(interceptor.push(':rotate\r')).toEqual({ passThrough: ':rotate\r', localEcho: '', rotate: false });
   });
 
   it('captures rotate after unrelated control bytes', () => {
@@ -36,12 +37,12 @@ describe('InputInterceptor', () => {
     expect(interceptor.push('oo\r')).toEqual({ passThrough: 'oo\r', localEcho: '', rotate: false });
   });
 
-  it('flushes locally echoed whitespace when a candidate line is not rotate', () => {
+  it('does not locally echo whitespace while waiting for a rotate candidate', () => {
     const interceptor = new InputInterceptor();
 
     expect(interceptor.push('  :nope\r')).toEqual({
       passThrough: '  :nope\r',
-      localEcho: '  :\b \b\b \b\b \b',
+      localEcho: '',
       rotate: false
     });
   });

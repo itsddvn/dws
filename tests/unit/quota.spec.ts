@@ -60,6 +60,16 @@ Quota resets May 7, 3:00 PM (UTC+7).
     });
   });
 
+  it('normalizes Free plan headline tier', () => {
+    const summary = parseQuotaSummary('Free plan, use /upgrade to access better models · 100% remaining (resets in 6h 45m)');
+
+    expect(summary).toMatchObject({
+      tier: 'Free',
+      remainingPercent: '100%',
+      resetsIn: '6h 45m'
+    });
+  });
+
   it('parses quota exhausted output as zero remaining', () => {
     const summary = parseQuotaSummary(
       'Error: Agent error: Your daily usage quota has been exhausted. Visit https://app.devin.ai/plans to manage your plan.'

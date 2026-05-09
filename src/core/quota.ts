@@ -1,6 +1,7 @@
 import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { runCapture } from '../util/exec';
 import { redactText } from '../util/redact';
+import { normalizeKnownTierLabel } from './account-eligibility';
 import { buildProfileEnv, buildProfileEnvWithoutRuntime } from './profile-env';
 import { probeQuotaViaPty, type QuotaPtyProbeOptions, type QuotaPtyProbeResult } from './quota-pty-probe';
 import type { Account } from './store';
@@ -237,5 +238,6 @@ function isQuotaDiagnosticNoise(line: string): boolean {
 
 function cleanTier(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  return value.trim().split(/\s{2,}/).pop()?.trim();
+  const cleaned = value.trim().split(/\s{2,}/).pop()?.trim();
+  return normalizeKnownTierLabel(cleaned) ?? cleaned;
 }

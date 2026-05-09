@@ -145,9 +145,7 @@ function isBackspace(char: string): boolean {
 
 function isLocalCommandCandidate(value: string): boolean {
   if (value.length === 0) return false;
-  const trimmedStart = value.trimStart();
-  if (trimmedStart.length === 0) return true;
-  return ':rotate'.startsWith(trimmedStart);
+  return ':rotate'.startsWith(value);
 }
 
 function eraseLocalEcho(value: string): string {

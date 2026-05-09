@@ -14,6 +14,12 @@ describe('OutputWatcher', () => {
     expect(watcher.push('Permission denied: Rate limit exceeded. Your request was not processed.')).toBe('rate-limit');
   });
 
+  it('ignores question text that only mentions rate limits', () => {
+    const watcher = new OutputWatcher();
+
+    expect(watcher.push('How should we handle rate limit retry behavior in this plan?')).toBeNull();
+  });
+
   it('ignores non-exhausted quota status text', () => {
     const watcher = new OutputWatcher();
 

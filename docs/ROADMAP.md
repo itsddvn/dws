@@ -112,7 +112,7 @@
 **Window:** 2026-05-07 -> 2026-05-07.
 **Goal:** Resolve package metadata drift, publish npm-ready metadata, and document quota cache behavior.
 **Workstreams:**
-- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.8`.
+- Manifests: align `package.json` and `package-lock.json` to `@itsddvn/dsw@0.4.9`.
 - Build: ship runtime-only package contents from `dist/src`.
 - Runtime: add quota cache, quota skip env var, and cache TTL env var.
 - Installer: make node-pty auto-install opt-in.
@@ -127,23 +127,29 @@
 - [x] `npm pack --dry-run` includes runtime files only.
 - [x] Product docs reflect npm package, quota cache, and  policy.
 
-### M7 Rate-limit recovery release (completed)
+### M7 Interactive recovery and Trial-only selection release (completed)
 
-**Window:** 2026-05-08 -> 2026-05-08.
-**Goal:** Avoid unnecessary account switches when Devin reports temporary rate limits caused by too many tool calls.
+**Window:** 2026-05-08 -> 2026-05-09.
+**Goal:** Avoid unnecessary account switches and prevent Free plan accounts from being selected for default runs or rotation.
 **Workstreams:**
 - Runtime: classify rate-limit output separately from exhausted quota.
 - Runtime: wait and run `devin --continue` up to three times before switching accounts.
-- Runtime: when switching is required, choose only an alternate account with positive parsed remaining quota.
-- Docs/release: bump npm package metadata to `0.4.8` and document the new recovery behavior.
+- Runtime: share Trial-only account eligibility between initial `dsw` selection and mid-session rotation.
+- Runtime: normalize Devin quota labels such as `Free plan` and `FreePlan` before selection.
+- Runtime: pass leading spaces through nested Devin prompts instead of buffering them as local rotate candidates.
+- Docs/release: bump npm package metadata to `0.4.9` and document the new recovery and eligibility behavior.
 **Deliverables:**
+- `src/core/account-eligibility.ts`.
+- `src/core/input-interceptor.ts`.
 - `src/core/output-watcher.ts`.
 - `src/core/pty-runner.ts`.
 - `src/core/rotate-engine.ts`.
+- `src/core/runner.ts`.
 - Updated tests, README, and `docs/*.md`.
 **Hard Exit Gate (all must pass):**
 - [x] Rate-limit watcher and PTY runner unit tests pass.
-- [x] Version references are aligned to `0.4.8`.
+- [x] Initial picker and rotate engine both ignore non-Trial accounts.
+- [x] Version references are aligned to `0.4.9`.
 - [x] Release verification commands pass.
 
 ## 3. ASCII Timeline
@@ -184,8 +190,9 @@
 
 | Tag | Milestone | Date | Audience |
 |-----|-----------|------|----------|
-| 0.4.8 | Current npm/GitHub release with rate-limit `--continue` recovery before quota-based account switching | 2026-05-08 | npm/GitHub |
-| 0.4.7 | Previous npm/GitHub release with quota PTY install hardening and package metadata alignment | 2026-05-07 | npm/GitHub |
+| 0.4.9 | Current npm/GitHub release with shared Trial-only selection, FreePlan normalization, safer prompt input, and rate-limit recovery | 2026-05-09 | npm/GitHub |
+| 0.4.8 | Previous npm/GitHub release with rate-limit `--continue` recovery before quota-based account switching | 2026-05-08 | npm/GitHub |
+| 0.4.7 | Earlier npm/GitHub release with quota PTY install hardening and package metadata alignment | 2026-05-07 | npm/GitHub |
 
 ## 8. Cadence
 
@@ -233,3 +240,4 @@ Lower-numbered doc wins ties. Update upstream first.
 | 1.2.0 | 2026-05-07 | itsddvn | Updated roadmap to include quota-aware automatic selection. |
 | 1.3.0 | 2026-05-07 | itsddvn | Marked package publication, quota cache, and  docs as completed for commit `49ceed6`. |
 | 1.4.0 | 2026-05-08 | itsddvn | Added completed `0.4.8` rate-limit recovery release milestone. |
+| 1.5.0 | 2026-05-09 | Codex | Updated current release to `0.4.9` for shared Trial-only selection, FreePlan normalization, prompt input, and rate-limit recovery fixes. |

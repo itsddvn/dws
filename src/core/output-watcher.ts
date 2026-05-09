@@ -25,7 +25,9 @@ function stripAnsi(value: string): string {
 const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g');
 
 function detectTrigger(output: string): OutputTrigger | null {
-  if (/rate limit/i.test(output)) return 'rate-limit';
+  if (/rate limit (?:exceeded|reached)|rate-limit (?:exceeded|reached)|too many requests|error: .*rate limit/i.test(output)) {
+    return 'rate-limit';
+  }
   if (/quota has been exhausted|quota exhausted|usage limit/i.test(output)) return 'quota';
   if (/something went wrong/i.test(output) && /internal error occurred/i.test(output)) return 'recoverable-error';
   return null;

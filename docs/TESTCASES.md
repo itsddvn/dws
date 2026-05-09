@@ -81,7 +81,7 @@ Forbidden in tests: real Devin credentials, live external API calls, persistent 
 2. Capture stdout and exit code.
 3. Assert exit code 0 and commands are present.
 4. Run version output and compare to package version.
-**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.8`.
+**Expected Result:** Help includes `list`, `add`, `remove`, `login`, `use`, `quota`, `update`, and `doctor`; version output is `0.4.9`.
 **Implementation:** `tests/integration/cli.spec.ts`.
 **Notes:** Tracks the supported command surface.
 
@@ -615,3 +615,4 @@ Reliability coverage is embedded in store persistence, login-failure recovery, a
 | 1.2.0 | 2026-05-07 | itsddvn | Added quota-aware automatic selection unit and integration coverage. |
 | 1.3.0 | 2026-05-07 | itsddvn | Added quota cache, package release, helper utility, atomic write, exec, and expanded redaction coverage. |
 | 1.4.0 | 2026-05-08 | itsddvn | Added rate-limit retry and quota-switch regression coverage for `0.4.8`. |
+| 1.5.0 | 2026-05-09 | Codex | Added Trial-only selection, FreePlan normalization, prompt input, and rate-limit false-positive regression coverage for `0.4.9`. |

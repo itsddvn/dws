@@ -211,6 +211,58 @@ describe('runDevinPtyForAccount', () => {
     }
   });
 
+  it('does not start rate-limit recovery when Devin asks a question mentioning rate limits', async () => {
+    vi.useFakeTimers();
+    const sandbox = createSandbox();
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const account = makeAccount('one');
+      const store = {
+        touchLastUsed: () => account
+      } as unknown as AccountStore;
+      const terms: FakePtyProcess[] = [];
+      const spawnedArgs: string[][] = [];
+      const ptyModule: PtyModule = {
+        spawn: (_file, args) => {
+          const term = new FakePtyProcess();
+          terms.push(term);
+          spawnedArgs.push(args);
+          return term;
+        }
+      };
+      const rotateEngine = {
+        rotate: vi.fn(async () => ({ account: null }))
+      };
+
+      const run = runDevinPtyForAccount(store, account, {
+        args: [],
+        appPaths: sandbox.paths,
+        baseEnv: sandbox.env,
+        autoRotate: true,
+        rateLimitRetryDelayMs: 60_000,
+        ptyModule,
+        rotateEngine
+      });
+
+      terms[0]!.emitData('How should we handle rate limit retry behavior in this plan?');
+      await vi.advanceTimersByTimeAsync(60_000);
+      await flushAsync();
+
+      expect(terms).toHaveLength(1);
+      expect(spawnedArgs).toEqual([[]]);
+      expect(rotateEngine.rotate).not.toHaveBeenCalled();
+
+      terms[0]!.emitExit(0);
+      await expect(run).resolves.toBe(0);
+    } finally {
+      vi.useRealTimers();
+      stdout.mockRestore();
+      stderr.mockRestore();
+      sandbox.cleanup();
+    }
+  });
+
   it('switches by quota after three failed devin --continue rate-limit retries', async () => {
     vi.useFakeTimers();
     const sandbox = createSandbox();

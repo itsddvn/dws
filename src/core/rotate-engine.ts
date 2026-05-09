@@ -1,3 +1,4 @@
+import { isKnownFreeAccount, isTrialAccount } from './account-eligibility';
 import { readQuotaForAccount } from './quota';
 import type { AccountQuota } from './quota';
 import type { Account, AccountStore } from './store';
@@ -37,7 +38,9 @@ export class RotateEngine {
         }
       }
 
-      const candidates = this.store.list().filter((account) => account.id !== request.current.id && !account.needsLogin);
+      const candidates = this.store
+        .list()
+        .filter((account) => account.id !== request.current.id && !account.needsLogin && !isKnownFreeAccount(account));
       const quotas = await Promise.all(
         candidates.map((account) =>
           readQuotaForAccount(account, {
@@ -57,8 +60,17 @@ export class RotateEngine {
 function pickBestAccountWithPositiveQuota(accounts: Account[], quotas: AccountQuota[]): Account | null {
   const quotaById = new Map(quotas.map((quota) => [quota.account.id, quota]));
   return accounts
-    .map((account) => ({ account, remaining: parsePercent(quotaById.get(account.id)?.summary.remainingPercent) }))
-    .filter((candidate): candidate is { account: Account; remaining: number } => candidate.remaining !== null && candidate.remaining > 0)
+    .map((account) => {
+      const quota = quotaById.get(account.id);
+      return { account, quota, remaining: parsePercent(quota?.summary.remainingPercent) };
+    })
+    .filter(
+      (candidate): candidate is { account: Account; quota: AccountQuota; remaining: number } =>
+        candidate.quota !== undefined &&
+        isTrialAccount(candidate.account, candidate.quota) &&
+        candidate.remaining !== null &&
+        candidate.remaining > 0
+    )
     .sort((left, right) => {
       if (left.remaining !== right.remaining) return right.remaining - left.remaining;
       return compareLeastRecentlyUsed(left.account, right.account);

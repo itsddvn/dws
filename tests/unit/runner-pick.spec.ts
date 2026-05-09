@@ -81,8 +81,8 @@ describe('pickBestAccountByQuota', () => {
       pickBestAccountByQuota(
         [low, high],
         [
-          makeQuota(low, { summary: { remainingPercent: '20%' } }),
-          makeQuota(high, { summary: { remainingPercent: '80%' } })
+          makeQuota(low, { summary: { tier: 'Trial', remainingPercent: '20%' } }),
+          makeQuota(high, { summary: { tier: 'Trial', remainingPercent: '80%' } })
         ]
       )?.name
     ).toBe('high');
@@ -96,11 +96,33 @@ describe('pickBestAccountByQuota', () => {
       pickBestAccountByQuota(
         [recent, old],
         [
-          makeQuota(recent, { summary: { remainingPercent: '50%' } }),
-          makeQuota(old, { summary: { remainingPercent: '50%' } })
+          makeQuota(recent, { summary: { tier: 'Trial', remainingPercent: '50%' } }),
+          makeQuota(old, { summary: { tier: 'Trial', remainingPercent: '50%' } })
         ]
       )?.name
     ).toBe('old');
+  });
+
+  it('ignores Free quota rows even when they have the most remaining quota', () => {
+    const free = makeAccount({ name: 'free', lastUsedAt: null });
+    const trial = makeAccount({ name: 'trial', lastUsedAt: 5000 });
+
+    expect(
+      pickBestAccountByQuota(
+        [free, trial],
+        [
+          makeQuota(free, { summary: { tier: 'Free', remainingPercent: '100%' } }),
+          makeQuota(trial, { summary: { tier: 'Trial', remainingPercent: '20%' } })
+        ]
+      )?.name
+    ).toBe('trial');
+  });
+
+  it('skips accounts already known as Free before considering fallback selection', () => {
+    const free = makeAccount({ name: 'free', tier: 'FreePlan', lastUsedAt: null });
+    const trial = makeAccount({ name: 'trial', tier: 'Trial', lastUsedAt: 5000 });
+
+    expect(pickBestAccountByQuota([free, trial], [])?.name).toBe('trial');
   });
 
   it('skips exhausted and zero-remaining accounts when another account is usable', () => {
@@ -112,7 +134,7 @@ describe('pickBestAccountByQuota', () => {
         [empty, ready],
         [
           makeQuota(empty, { status: 'exhausted', summary: { remainingPercent: '0%' } }),
-          makeQuota(ready, { summary: { remainingPercent: '10%' } })
+          makeQuota(ready, { summary: { tier: 'Trial', remainingPercent: '10%' } })
         ]
       )?.name
     ).toBe('ready');
@@ -127,7 +149,7 @@ describe('pickBestAccountByQuota', () => {
         [empty, fallback],
         [
           makeQuota(empty, { status: 'timeout', summary: { remainingPercent: '0%' }, exitCode: null }),
-          makeQuota(fallback, { status: 'error', exitCode: 1 })
+          makeQuota(fallback, { status: 'error', summary: { tier: 'Trial' }, exitCode: 1 })
         ]
       )?.name
     ).toBe('fallback');
@@ -141,8 +163,8 @@ describe('pickBestAccountByQuota', () => {
       pickBestAccountByQuota(
         [recent, old],
         [
-          makeQuota(recent, { status: 'error', exitCode: 1 }),
-          makeQuota(old, { status: 'timeout', exitCode: null })
+          makeQuota(recent, { status: 'error', summary: { tier: 'Trial' }, exitCode: 1 }),
+          makeQuota(old, { status: 'timeout', summary: { tier: 'Trial' }, exitCode: null })
         ]
       )?.name
     ).toBe('old');
@@ -169,9 +191,9 @@ describe('pickBestAccountByQuota', () => {
       pickBestAccountByQuota(
         [positive, unknown, fallback],
         [
-          makeQuota(positive, { summary: { remainingPercent: '40%' } }),
-          makeQuota(unknown, { status: 'ok', summary: {} }),
-          makeQuota(fallback, { status: 'error', exitCode: 1 })
+          makeQuota(positive, { summary: { tier: 'Trial', remainingPercent: '40%' } }),
+          makeQuota(unknown, { status: 'ok', summary: { tier: 'Trial' } }),
+          makeQuota(fallback, { status: 'error', summary: { tier: 'Trial' }, exitCode: 1 })
         ]
       )?.name
     ).toBe('positive');
@@ -181,8 +203,8 @@ describe('pickBestAccountByQuota', () => {
       pickBestAccountByQuota(
         [unknown, fallback],
         [
-          makeQuota(unknown, { status: 'ok', summary: {} }),
-          makeQuota(fallback, { status: 'error', exitCode: 1 })
+          makeQuota(unknown, { status: 'ok', summary: { tier: 'Trial' } }),
+          makeQuota(fallback, { status: 'error', summary: { tier: 'Trial' }, exitCode: 1 })
         ]
       )?.name
     ).toBe('unknown');

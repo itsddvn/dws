@@ -3,6 +3,7 @@ import { resolveAppPaths, type AppPaths } from '../config/paths';
 import { buildProfileEnv } from './profile-env';
 import { persistProfileRuntime } from './profile-runtime';
 import { getPtyAvailability, runDevinPtyForAccount } from './pty-runner';
+import { isKnownFreeAccount, isTrialAccount } from './account-eligibility';
 import type { AccountQuota } from './quota';
 import type { Account, AccountStore } from './store';
 
@@ -64,7 +65,7 @@ export function pickNextAccount(accounts: Account[]): Account | null {
  * Exhausted accounts are skipped when any usable or fallback account exists.
  */
 export function pickBestAccountByQuota(accounts: Account[], quotas: AccountQuota[]): Account | null {
-  const eligible = accounts.filter((account) => !account.needsLogin);
+  const eligible = accounts.filter((account) => !account.needsLogin && !isKnownFreeAccount(account));
   if (eligible.length === 0) return null;
 
   const ranked = rankQuotaCandidates(eligible, quotas);
@@ -101,10 +102,13 @@ function rankQuotaCandidates(accounts: Account[], quotas: AccountQuota[]): Quota
   const quotaById = new Map(quotas.map((quota) => [quota.account.id, quota]));
   return accounts.map((account) => {
     const quota = quotaById.get(account.id);
-    if (!quota) return { account, usability: 'fallback', remaining: -1 };
+    if (!quota) {
+      return { account, usability: isTrialAccount(account, undefined) ? 'fallback' : 'unavailable', remaining: -1 };
+    }
 
     const remaining = parsePercent(quota.summary.remainingPercent);
     if (remaining !== null && remaining <= 0) return { account, usability: 'unavailable', remaining };
+    if (!isTrialAccount(account, quota)) return { account, usability: 'unavailable', remaining: remaining ?? -1 };
 
     if (quota.status === 'needs-login' || quota.status === 'exhausted') return { account, usability: 'unavailable', remaining: 0 };
     if (quota.status === 'error' || quota.status === 'timeout') return { account, usability: 'fallback', remaining: -1 };
